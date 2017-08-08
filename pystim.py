@@ -1,0 +1,464 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+"""
+pystim: a Python Class for interacting with hardware to produce sounds and
+record signals.
+
+Output hardware is either an National Instruments DAC card or a system sound card
+If the NI DAC is available, TDT system 3 hardware is assumed as well for the
+attenuators (PA5) and an RP2.1 to input the startle response.
+Second channel of RP2.1 is collected as well. Use this for a microphone input
+to monitor sound in the chamber.
+
+If the system sound card is used, stimuli are generated. This is used only for testing.
+
+
+12/17/2008 Paul B. Manis, Ph.D.
+UNC Chapel Hill
+Department of Otolaryngology/Head and Neck Surgery
+Supported by NIH Grants DC000425-22 and DC004551-07 to PBM.
+Copyright Paul Manis, 2008, 2009
+
+Refactored and modified version, includes access to rz5d to help synchronize acquisition.
+August, 2017
+"""
+
+
+
+"""
+TDT manual: 
+Sweep ControlTo use the sweep control circuit constructs the following names are required:zSwPeriod: The period of the sweep duration. This is set in OpenWorkbench and can not be modified during block acquisition. If it is necessary to change this value during the experiment, an *asynchronous next sweep control circuit* construct should be used. See Asynchronous Next Sweep Control, page 324 for more information.317
+OpenEx User's Guide318zSwCount: The maximum number of sweeps before the signal is terminated. If this requires manual or external control, the value should be set to -1 through the OpenWorkbench protocol.
+
+"""
+import os
+import struct, ctypes
+import numpy as np
+import time
+import pyaudio
+
+# The following are reference values for rough calibrations
+# They do not correct for system frequency responses
+# They are old.
+
+REF_ES_dB = 86.0 # calibration info -  Assumes 10 dB padding with attenuator.
+REF_ES_volt = 2.0 # output in volts to get refdb
+REF_MAG_dB = 100.0 # right speaker is mag... different scaling.
+
+RZ5D_Idle = 0
+RZ5D_Preview = 2
+RZ5D_Standby = 1
+RZ5D_Run = 3
+
+if os.name == 'nt':
+    import nidaq
+    import win32com.client
+    
+class PyStim:
+    
+    def __init__(self, requireNIPA5=False, devicename='dev0'):
+        """    the first thing we must do is find out what hardware is available and what
+            system we are on.
+        """
+        self.debugFlag = False
+        self.requireNIPA5 = requireNIPA5  # Require specific hardware 
+        self.hardware = [] # list of hardware found on this system
+        self.find_hardware(device_info={'devicename': devicename})
+        
+    def find_hardware(self, device_info=None):
+        """
+        Find the hardware on the system
+        For non-windows systems, this just finds the system soundcard for testing
+        Otherwise it looks for available hardware to use
+        Keeps track of available hardware in the self.hardware list
+        
+        Parameters
+        ----------
+        device_info : dict (default: None)
+            User defined dictionary of parameters to pass to devices
+        
+        """
+        if os.name is not 'nt': # If not on a Windows system, just set up soundcard
+            self.setup_soundcard()
+            self.hardware.append('Soundcard')
+        else:
+            if self.setup_nidaq():
+                self.hardware.append('NIDAQ', device_info)
+            if self.setup_RP21():
+                self.hardware.append('RP21')
+            if self.setup_PA5():
+                self.hardware.append('PA5')
+            if self.setup_RZ5D():
+                self.hardware.append('RZ5D')
+
+    def setup_soundcard(self):
+        if self.debugFlag:
+            print("pysounds.init: OS or hardware only supports standard sound card")
+        self.hardware.append('pyaudio')
+        self.out_sampleFreq = 44100.0
+        self.in_sampleFreq = 44100.0
+        
+    def setup_nidaq(self, device_info):
+        # get the drivers and the activeX control (win32com)
+
+        if len(nidaq.NIDAQ.listDevices()) <=  0:
+            if self.requireNIPA5:
+                raise IOError('NIDAQ requirement requested, but device not found')
+            else:
+                return False
+            
+        self.NIdevicename = nidaq.NIDAQ.getDevice(device_info['devicename'])
+        if self.debugFlag:
+            print ("pysounds.init: found nidaq devices.")
+            print ("devices: %s" % nidaq.NIDAQ.listDevices())
+            print( "getDevice: ", self.NIdevicename)
+        
+            print ("\nAnalog Output Channels: %d" %  self.NIDevice.listAOChannels())
+        self.NIdevicename = device_info['devicename']
+        return True
+        
+    def setup_PA5(self, usbdevices=[1,2]):
+        # active X connection to attenuators
+        self.PA5 = win32com.client.Dispatch("PA5.x")
+        for devnum in usbdevices:
+            a = self.PA5.ConnectPA5("USB", usbdevices[devnum])
+            if a > 0:
+                if self.debugFlag:
+                    print ("pysounds.init: Connected to PA5 Attenuator 1")
+            else:
+                if self.requireNIPA5:
+                    raise IOError('NIDAQ/PA5 requirement requested, but device not found')
+                else:
+                    return False
+            self.PA5.SetAtten(120.0)
+        return True
+
+    def setup_RP21(self):
+            self.RP21 = win32com.client.Dispatch("RPco.x") # connect to RP2.1
+            a = self.RP21.ConnectRP2("USB", 1)
+            if a > 0 and self.debugFlag:
+                print ("pysounds.init: RP2.1 Connect is good: %d" % (a))
+            else:
+                print ("pysounds.init: Failed to connect to PA5 Attenuator 1")
+                return False
+            self.RP21.ClearCOF()
+            self.samp_cof_flag = 2 # 2 is for 24.4 kHz
+            self.samp_flist = [6103.5256125, 12210.703125, 24414.0625, 48828.125, 
+            97656.25, 195312.5]
+            if self.samp_cof_flag > 5:
+                self.samp_cof_flag = 5
+            a = self.RP21.LoadCOFsf("C:\pyStartle\startle2.rco", self.samp_cof_flag)
+            if a > 0:
+                print ("pysounds.init: Connected to TDT RP2.1 and startle2.rco is loaded")
+            else:
+                print ("pysounds.init: Error loading startle2.rco?, error = %d" % (a))
+                return False
+            self.hardware = 'nidaq'
+            self.out_sampleFreq = self.samp_flist[self.samp_cof_flag]
+            self.in_sampleFreq = self.samp_flist[self.samp_cof_flag]
+            return True
+    
+    def setup_RZ5D(self):
+        print('Connectinog to RZ5D')
+        self.RZ5D = win32com.client.Dispatch('TDevAcc.X')
+        self.RZ5D.ConnectServer('Local')
+        self.RZ5DParams = {}
+        self.RZ5DParams['device_name'] = self.RZ5D.GetDeviceName(0)
+        self.RZ5DParams['RCO'] = self.RZ5D.GetDeviceRCO(self.RZ5DParams['device_name'])
+        print('Device RCO/X file: {0:s}'.format(self.RZ5DParams['RCO']))
+        self.RZ5DParams['device_status'] = self.RZ5D.GetDeviceStatus(self.RZ5DParams['device_name'])
+        print('Device Status: {0:d}'.format(self.RZ5DParams['device_status']))
+        
+        for tag in [68, 73, 76, 80, 83, 65]:
+            self.getTags(self.RZ5D, self.RZ5DParams['device_name'], tag)
+
+        # these mostly point to values in the TDT CoreSweep macro
+        self.RZ5DVals = {'zSwPeriod': 'ACQ_16ch.zSwPeriod',
+                         'SweepTrigger': 'ACQ_16Ch.SweepTrigger',
+                         'Cnt': 'ACQ_16ch.zSwCount',
+                         'SWN': 'ACQ_16ch.SweepNum',
+                         'Done': 'ACQ_16ch.SweepDone',
+                         }
+
+        self.RZ5DParams['SampleFrequency'] = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name']) # get device sample frequency
+        print('RZ5D Sample Frequency: %f' % self.RZ5DParams['SampleFrequency'])
+
+        self.RZ5D.SetTargetVal(self.RZ5DParams['Cnt'], 1)
+        self.RZ5DParams['zSwCount'] = self.RZ5D.GetTargetVal(self.RZ5DVals['Cnt'])
+        print('zSwCount: %d' % self.RZ5DParams['zSwCount'])
+
+        self.RZ5D.SetTargetVal(self.RZ5DParams['zSwPeriod'], 1.0) # initially set for one second
+        self.RZ5D['zSwPeriod'] = self.RZ5D.GetTargetVal(self.RZ5DVals['zSwPeriod'])
+        print('zSwPeriod points (N): %d', self.RZ5D['zSwPeriod'])
+
+    def getTags(self, device, device_name, tagnum):
+        tag =  device.GetNextTag(device_name, tagnum, 1)
+        if len(tag) > 0:
+            print('Type {0:2d}: Tag = {1:s}' % (tagnum, tag))
+        while len(tag) > 0:
+            tag =  device.GetNextTag(device_name, tagnum, 0)
+            if len(tag) == 0:
+                return
+            print('         Tag = {0:s}', tag)
+
+    def present_stim(self, waveforms, stimulus_period=1.0):
+        self.RZ5D.setTargetVal(self.RZ5D['zSwPeriod'], stimulus_period)
+        self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
+        time.sleep(0.01) # just wait a few msec
+        self.RZ5D.SetSysMode(RZ5D_Run)
+
+    def RZ5D_close(self):
+        self.RZ5D.SetSysMode(RZ5D_Idle) # Idle
+        time.sleep(1)
+        self.RZ5D.CloseConnection();
+
+    def getHardware(self):
+        return(self.hardware, self.out_sampleFreq, self.in_sampleFreq)
+
+# internal debug flag to control printing of intermediate messages        
+    def debugOn(self):
+        self.debugFlag = True
+    
+    def debugOff(self):
+        self.debugFlag = False
+    
+
+
+#
+# compute voltage from reference dB level
+# db = 20 * log10 (Vsignal/Vref)
+#
+    def dbconvert(self, spl = 0, chan = 0):
+        ref = REF_ES_dB
+        if chan == 1:
+            ref = REF_MAG_dB
+        
+        zeroref = REF_ES_volt/(10**(ref/20.0));
+        sf = zeroref*10**(spl/20.0); # actually, the voltage needed to get spl out...
+        if self.debugFlag:
+            print ("pysounds.dbconvert: scale = %f for %f dB" % (sf, spl))
+        return (sf) # return a scale factor to multiply by a waveform normalized to 1 
+
+    def setAttens(self, atten_left=120., atten_right=120.):
+        if self.hardware == 'nidaq':
+            self.PA5.ConnectPA5("USB", 1)
+            self.PA5.SetAtten(atten_left)
+            self.PA5.ConnectPA5("USB", 2)
+            self.PA5.SetAtten(atten_right)
+
+    def play_sound(self, wavel, waver, samplefreq, postduration = 0.35, attns=[20., 20.]):
+        """
+        play_sound sends the sound out to an audio device. In the absence of NI card
+        and TDT system, it will use the system audio device (sound card, etc)
+        The waveform is played in both channels on sound cards, possibly on both channels
+        for other devices if there are 2 channels.
+        
+        Parameters
+        ----------
+        wavel : numpy array of floats
+            Left channel waveform
+        waver : numpy of floats
+            Right channel waveform
+        samplefreq : float
+            output sample frequency (Hz)
+        postduration : float (default: 0.35)
+            Time after end of stimulus, in seconds
+        
+        """  
+        
+        if 'pyaudio' in self.hardware:
+            self.audio = pyaudio.PyAudio()
+            chunk = 1024
+            FORMAT = pyaudio.paFloat32
+            CHANNELS = 2
+            RATE = samplefreq
+            if self.debugFlag:
+                print ("pysounds.play_sound: samplefreq: %f" % (RATE))
+            self.stream = self.audio.open(format = FORMAT,
+                            channels = CHANNELS,
+                            rate = int(RATE),
+                            output = True,
+                            input = True,
+                            frames_per_buffer = chunk)
+            # play stream
+            #print self.stream
+            wave = np.zeros(2*len(wavel))
+            if len(wavel) != len(waver):
+                print ("pysounds.play_sound: waves not matched in length: %d vs. %d (L,R)" % (len(wavel), len(waver)))
+                return
+            (waver, clipr) = self.clip(waver, 20.0)
+            (wavel, clipl) = self.clip(wavel, 20.0)
+            wave[0::2] = waver 
+            wave[1::2] = wavel  # order chosen so matches entymotic earphones on my macbookpro.
+            postdur =  int(float(postduration*self.in_sampleFreq))
+            #rwave = read_array(len(wavel)+postdur, CHANNELS)
+            write_array(self.stream, wave)
+            self.stream.stop_stream()
+            self.stream.close()
+            self.audio.terminate()
+            #self.ch1 = rwave[0::2]
+            #self.ch2 = rwave[1::2]
+            return
+        
+        stimulus_duration = len(wavel)*samplefreq + postduration
+        
+        if 'NIDAQ' in self.hardware:
+            self.prepare_NIDAQ(wavel, waver)
+            
+        if 'RP21' in self.hardware:
+            # now take in some acquisition...
+            a = self.RP21.ClearCOF()
+            if a <= 0:
+                print ("pysounds.playSound: Unable to clear RP2.1")
+                return
+            a = self.RP21.LoadCOFsf("C:\pyStartle\startle2.rco", self.samp_cof_flag)
+            if a > 0 and self.debugFlag:
+                print ("pysounds.playSound: Connected to TDT RP2.1 and startle2.rco is loaded")
+            else:
+                print ("pysounds.playSound: Error loading startle2.rco?, error = %d" % (a))
+                return
+            self.trueFreq = self.RP21.GetSFreq()
+            Ndata = np.ceil(0.5*(stimulus_duration)*self.trueFreq)
+            self.RP21.SetTagVal('REC_Size', Ndata)  # old version using serbuf  -- with
+            # new version using SerialBuf, can't set data size - it is fixed.
+            # however, old version could not read the data size tag value, so
+            # could not determine when buffer was full/acquisition was done.
+            
+            if 'PA5' in self.hardware:
+                self.setAttens(10.0,10.0) # set equal, but not at minimum...
+
+            self.task.start() # start the NI AO task
+            
+            if 'RP21' in self.hardware:
+                a = self.RP21.Run() # start the RP2.1 processor...
+                a = self.RP21.SoftTrg(1) # and trigger it. RP2.1 will in turn start the ni card
+            
+            while not self.task.isTaskDone():  # wait for AO to finish?
+                if 'RP21' in self.hardware:
+                    self.RP21.Halt()
+                self.task.stop()
+                return
+            
+            self.task.stop() # done, so stop the output.
+            if 'PA5' in self.hardware:
+                self.setAttens() # attenuators down (there is noise otherwise)
+            # read the data...
+            curindex1 = self.RP21.GetTagVal('Index1')
+            curindex2 = self.RP21.GetTagVal('Index2')
+            
+            if 'RP21' in self.hardware:
+                while(curindex1 < Ndata or curindex2 < Ndata): # wait for input data to be sampled
+                    self.RP21.Halt()
+                    return
+                    curindex1 = self.RP21.GetTagVal('Index1')
+                    curindex2 = self.RP21.GetTagVal('Index2')
+            self.task.stop()   
+            
+            if 'RP21' in self.hardware:
+                self.ch2 = self.RP21.ReadTagV('Data_out2', 0, Ndata)
+                # ch2 = ch2 - mean(ch2[1:int(Ndata/20)]) # baseline: first 5% of trace
+                self.ch1 = self.RP21.ReadTagV('Data_out1', 0, Ndata)
+                self.RP21.Halt()
+    
+
+    def prepare_NIDAQ(self, wavel, waver, samplefreq=100000):
+        self.task = self.NIDevice.createTask()  # creat a task for the NI 6731 board.
+        self.task.CreateAOVoltageChan("/%s/ao0" % self.NIDevicename, "ao0", -10., 10.,
+                                      nidaq.Val_Volts, None)
+        self.task.CreateAOVoltageChan("/%s/ao1" % self.NIDevicename, "ao1", -10., 10.,
+                                      nidaq.Val_Volts, None) # use 2 channels
+        wlen = 2*len(wavel)
+        self.task.CfgSampClkTiming(None, samplefreq, nidaq.Val_Rising,
+                                   nidaq.Val_FiniteSamps, len(wavel))
+        # DAQmxCfgDigEdgeStartTrig (taskHandle, "PFI0", DAQmx_Val_Rising);
+        # set up triggering for the NI (hardware trigger)
+        self.task.SetStartTrigType(nidaq.Val_DigEdge)
+        self.task.CfgDigEdgeStartTrig('PFI0',  nidaq.Val_Rising)
+        
+        """
+        This is just a test - but it might work.
+        Look in NIDAQmx.h, strip the "DAQmx" from the function name.
+        """
+        self.task.SetStartTrigRetriggerable = 1  # so we set up a short waveform and let NI get retriggered by Rz5d 
+        daqwave = np.zeros(wlen)
+        (wavel, clipl) = self.clip(wavel, 10.0)
+        (waver, clipr) = self.clip(waver, 10.0)
+        
+        daqwave[0:len(wavel)] = wavel
+        daqwave[len(wavel):] = waver # concatenate channels (using "groupbychannel" in writeanalogf64)
+        self.task.write(daqwave)
+        
+        
+    def retrieveRP21_inputs(self):
+        return(self.ch1, self.ch2)
+        
+    def HwOff(self): # turn the hardware off if you can.
+        
+        if 'Soundcard' in self.hardware:
+            self.stream.stop_stream()
+            self.stream.close()
+            self.audio.terminate()
+        
+        if 'nidaq' in self.hardware:
+            self.task.SetStartTrigRetriggerable = 0
+            self.task.stop()
+            self.setAttens()
+            
+        if 'RP21' in self.hardware:
+            self.RP21.Halt()
+            
+# clip data to max value (+/-) to avoid problems with daqs
+    def clip(self, data, maxval):
+        if self.debugFlag:
+            print ("pysounds.clip: max(data) = %f, %f and maxval = %f" % (
+                max(data), min(data), maxval))
+        clip = 0
+        u = np.where(data >= maxval)
+        ul = list(np.transpose(u).flat)
+        if len(ul) > 0:
+            data[ul] = maxval
+            clip = 1 # set a flag in case we want to know
+            if self.debugFlag:
+                print ("pysounds.clip: clipping %d positive points" % (len(ul)))
+        minval = -maxval
+        v = np.where(data <= minval)
+        vl = list(np.transpose(v).flat)
+        if len(vl) > 0:
+            data[vl] = minval
+            clip = 1
+            if self.debugFlag:
+                print ("pysounds.clip: clipping %d negative points" % (len(vl)))
+        if self.debugFlag:
+            print ("pysounds.clip: clipped max(data) = %f, %f and maxval = %f" % (
+                    np.max(data), np.min(data), maxval))
+        return (data, clip)
+
+
+
+        
+"""
+the following was taken from #http://hlzr.net/docs/pyaudio.html
+it is used for reading and writing to the system audio device
+
+"""
+def write_array(stream, data):
+    """
+    Outputs a numpy array to the audio port, using PyAudio.
+    """
+    # Make Buffer
+    buffer_size = struct.calcsize('@f') * len(data)
+    output_buffer = ctypes.create_string_buffer(buffer_size)
+
+    # Fill Up Buffer
+    #struct needs @fffff, one f for each float
+    dataformat = '@' + 'f'*len(data)
+    struct.pack_into(dataformat, output_buffer, 0, *data)
+
+    # Shove contents of buffer out audio port
+    stream.write(output_buffer)
+
+def read_array(stream, size, channels=1):
+    input_str_buffer = np.zeros((size, 1)) # stream.read(size)
+    input_float_buffer = struct.unpack('@' + 'f'*size*channels, input_str_buffer)
+    return np.array(input_float_buffer)
