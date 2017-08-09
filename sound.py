@@ -50,6 +50,7 @@ class Sound(object):
         """
         if self._time is None:
             self._time = np.linspace(0, self.opts['duration'], self.num_samples)
+#        print('time shape: ', self._time.shape, self.opts['duration'], self.num_samples)
         return self._time
 
     @property 
@@ -465,7 +466,7 @@ class SpeechShapedNoise(Sound):
     Adapted from http://www.srmathias.com/speech-shaped-noise/
     """
     def __init__(self, **kwds):
-        for k in ['rate', 'duration']:
+        for k in ['rate', 'duration', 'waveform', 'samplingrate']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
         # if kwds['pip_duration'] < kwds['ramp_duration'] * 2:
@@ -474,9 +475,11 @@ class SpeechShapedNoise(Sound):
 
     def generate(self):
         o = self.opts
-        print 'opts: ', o
-        ssn, t = make_ssn(o['rate'], o['duration'])
+        #print 'opts: ', o
+        ssn, t = make_ssn(o['rate'], o['duration'], o['waveform'], o['samplingrate'])
         self._time = t  # override time array because we read a wave file
+        # if self.opts['duration'] == 0:
+        #     self.opts['duration'] = np.max(t) - 1./o['rate']
         return ssn
 
 class RandomSpectrumShape(Sound):
@@ -532,7 +535,7 @@ class RandomSpectrumShape(Sound):
         # mpl.plot(self.time, result)
         return result
 
-def make_ssn(rate, duration):
+def make_ssn(rate, duration, sig, samplingrate):
         """
         Speech-shaped noise
         Adapted from http://www.srmathias.com/speech-shaped-noise/
@@ -540,13 +543,12 @@ def make_ssn(rate, duration):
         @author: smathias
         """
         # note rate is currently ignored...
-        import scipy.io.wavfile as wav
-
-        (rate,sig) = wav.read("testsentence.wav") 
-        sig = np.array(sig[:,0]).astype('float64')
+        sig = np.array(sig).astype('float64')
+        if rate != samplingrate:  # interpolate to the current system sampling rate from the original rate
+            sig = np.interp(np.arange(0, len(sig)/rate, 1./rate),
+                np.arange(0, len(sig)/samplingrate), 1./samplingrate)
         sig = 2*sig/np.max(sig)
         z, t = noise_from_signal(sig, rate, keep_env=True)
-
         return z, t
 
 def noise_from_signal(x, fs=40000, keep_env=True):
@@ -574,13 +576,12 @@ def noise_from_signal(x, fs=40000, keep_env=True):
         2. * np.pi * 1j * np.random.random(X.shape[-1]))
     noise = np.real(np.fft.irfft(noise_mag, n_fft))
     out = noise[:n_x]
-    t = np.linspace(0, (len(out)-1)*fs, len(out))
     if keep_env:
         env = np.abs(scipy.signal.hilbert(x))
         [bb, aa] = scipy.signal.butter(6., 50. / (fs / 2.))  # 50 Hz LP filter
         env = scipy.signal.filtfilt(bb, aa, env)
         out *= env
-
+    t = np.arange(0, (len(out))/fs, 1./fs)
     return out, t
 
 
