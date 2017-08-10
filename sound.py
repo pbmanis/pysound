@@ -460,7 +460,7 @@ class ComodulationMasking(Sound):
             return basetone
         if o['flanking_type'] == '3Tone':
             flankfs = [o['f0']*(k+1)*o['flanking_spacing'] for k in range(o['flanking_bands']) ]
-            flankfs.append([o['f0']/((k+1)*o['flanking_spacing']) for k in range(o['flanking_bands']) ]
+            flankfs.append([o['f0']/((k+1)*o['flanking_spacing']) for k in range(o['flanking_bands']) ])
             if o['flanking_phase'] == 'comodulated':
                 ph = np.zeros(len(flankfs))
             elif o['flanking_phase'] == 'codeviant':

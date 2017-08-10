@@ -25,7 +25,7 @@ class Controller(object):
         self.interstimulus_interval = 1.0  # time between stimuli, s
         self.protocol = 'Tone RI'
         self.randomize = False  # randomize order of presentation (or not...)
-        self.PS = pystim.PyStim()
+        self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
@@ -36,7 +36,6 @@ class Controller(object):
         self.RSS_sd = 12.
         self.RSS_spacing = 64
         
-        self.CMMR_flanking_type = '3Tone'  # stimulus pattern
         self.CMMR_flanking_bands = 3  # flanking bands
         self.CMMR_flanking_phase = 'comodulated'  # flanking bands comodulated 
         self.CMMR_flanking_spacing = 0.5  # octaves
@@ -243,6 +242,9 @@ class Controller(object):
         self.timer.stop()
         # self.timedWrite.stop()
 #        self.storeData()
+    def quit(self):
+        self.PS.HwOff()
+        exit(0)
 
     def prepare_run(self):
         """
@@ -523,7 +525,7 @@ class BuildGui(object):
         self.btn_pause.clicked.connect(self.controller.pause_run)
         self.btn_continue.clicked.connect(self.controller.continue_run)
         self.btn_stop.clicked.connect(self.controller.stop_run)
-        self.btn_quit.clicked.connect(self.controller.quit())
+        self.btn_quit.clicked.connect(self.controller.quit)
         
 
 if __name__ == '__main__':
