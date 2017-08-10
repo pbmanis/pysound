@@ -57,12 +57,12 @@ if os.name == 'nt':
     
 class PyStim:
     
-    def __init__(self, requireNIPA5=False, devicename='dev0'):
+    def __init__(self, requiredHardware=['Soundcard'], devicename='dev0'):
         """    the first thing we must do is find out what hardware is available and what
             system we are on.
         """
         self.debugFlag = False
-        self.requireNIPA5 = requireNIPA5  # Require specific hardware 
+        self.requiredHardware = requiredHardware  # Require specific hardware 
         self.hardware = [] # list of hardware found on this system
         self.find_hardware(device_info={'devicename': devicename})
         
@@ -83,13 +83,13 @@ class PyStim:
             self.setup_soundcard()
             self.hardware.append('Soundcard')
         else:
-            if self.setup_nidaq():
+            if 'nidaq' in self.required_hardware and self.setup_nidaq():
                 self.hardware.append('NIDAQ', device_info)
-            if self.setup_RP21():
+            if 'RP21' in self.required_hardware and self.setup_RP21():
                 self.hardware.append('RP21')
-            if self.setup_PA5():
+            if 'PA5' in self.required_hardware and 'nidaq' in self.required_hardware and self.setup_PA5():
                 self.hardware.append('PA5')
-            if self.setup_RZ5D():
+            if 'RZ5D' in self.required_hardware and self.setup_RZ5D():
                 self.hardware.append('RZ5D')
 
     def setup_soundcard(self):
@@ -183,6 +183,8 @@ class PyStim:
 
         self.RZ5DParams['SampleFrequency'] = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name']) # get device sample frequency
         print('RZ5D Sample Frequency: %f' % self.RZ5DParams['SampleFrequency'])
+
+        self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
 
         self.RZ5D.SetTargetVal(self.RZ5DParams['Cnt'], 1)
         self.RZ5DParams['zSwCount'] = self.RZ5D.GetTargetVal(self.RZ5DVals['Cnt'])
@@ -371,8 +373,13 @@ class PyStim:
         wlen = 2*len(wavel)
         self.task.CfgSampClkTiming(None, samplefreq, nidaq.Val_Rising,
                                    nidaq.Val_FiniteSamps, len(wavel))
+        self.task.CfgDigEdgeStartTrig (taskHandle, "PFI0", nidaq.Val_Rising);
+        
         # DAQmxCfgDigEdgeStartTrig (taskHandle, "PFI0", DAQmx_Val_Rising);
         # set up triggering for the NI (hardware trigger)
+        
+        # Need to set up count of trigger events, but not seeing it in NIDAQmx.h
+        
         self.task.SetStartTrigType(nidaq.Val_DigEdge)
         self.task.CfgDigEdgeStartTrig('PFI0',  nidaq.Val_Rising)
         
@@ -407,6 +414,9 @@ class PyStim:
             
         if 'RP21' in self.hardware:
             self.RP21.Halt()
+        
+        if 'RZ5D' in self.hardware:
+            self.RZ5D_close()
             
 # clip data to max value (+/-) to avoid problems with daqs
     def clip(self, data, maxval):

@@ -2,10 +2,6 @@ from __future__ import print_function
 
 import sys
 import datetime
-import pickle
-import platform
-import serial
-import time
 import numpy as np
 import scipy.signal
 import scipy.io.wavfile as wav
@@ -39,6 +35,11 @@ class Controller(object):
         self.RSS_octaves = 3
         self.RSS_sd = 12.
         self.RSS_spacing = 64
+        
+        self.CMMR_flanking_type = '3Tone'  # stimulus pattern
+        self.CMMR_flanking_bands = 3  # flanking bands
+        self.CMMR_flanking_phase = 'comodulated'  # flanking bands comodulated 
+        self.CMMR_flanking_spacing = 0.5  # octaves
         
                 
     # def setAllParameters(self, params):
@@ -107,6 +108,15 @@ class Controller(object):
                     self.dMod = data
                 if path[1] == 'Modulation Frequency':
                     self.fMod = data
+                if path[1] == 'CMMR Flanking Type':
+                    self.CMMR_flanking_type = data
+                if path[1] == 'CMMR Flanking Bands':
+                    self.CMMR_flanking_bands = data
+                if path[1] == 'CMMR Flanking Phase':
+                    self.CMMR_flanking_phase = data
+                if path[1] == 'CMMR Flanking Spacing':
+                    self.CMMR_flanking_spacing = data
+                    
             if path[0] == 'RSS Params':
                 if path[1] == 'CF':
                     self.RSS_cf = data
@@ -279,6 +289,16 @@ class Controller(object):
         elif stim in ['DMR']:
            wave = sound.DynamicRipple(rate=Fs, duration=5.0)
         
+        elif stim in ['CMMR']:  # flanking type is "noise" (modulated), or "3Tone", or "None".
+                                # flankingPhase is comodulated or codeviant or random (if type is not None)
+                                # spacing is band spacing in octaves (for flanking bands)
+                                # 
+           wave = sound.ComodulationMasking(rate=Fs, duration=self.duration, f0=self.tone_frequency*1000., 
+               dbspl=level, fmod=self.fMod, dmod=self.dMod,
+               flanking_type=self.CMMR_flanking_type, flanking_spacing=self.CMMR_flanking_spacing,
+               flanking_phase=self.CMMR_flanking_phase, flanking_bands=self.CMMR_flanking_bands,
+               )
+
         elif stim in ['SSN']: # speech shaped noise
             # read the file:
             fname = "testsentence.wav"
@@ -311,7 +331,6 @@ class Controller(object):
     def show_spectrogram(self):
         self.prepare_run()
         Fs = self.PS.out_sampleFreq
-        nfft = 256
         specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wave.sound, nperseg=int(0.01*Fs), fs=Fs)
         thr = 0. # 1e-8
         Sxx[Sxx <= thr] = thr
@@ -339,7 +358,7 @@ class Controller(object):
 
 class BuildGui(object):
     def __init__(self):
-        app = pg.mkQApp()
+        self.app = pg.mkQApp()
         self.win = QtGui.QWidget()
         self.layout = QtGui.QGridLayout()
         self.win.setLayout(self.layout)
@@ -371,11 +390,18 @@ class BuildGui(object):
                 {'name': 'Delay', 'type': 'float', 'value': 0.01, 'step': 0.05, 'limits': [0.001, 10],
                     'suffix': 's', 'default': 0.2, 'tip': 'Sound delay, in seconds'},
              ]},
-             {'name': 'Modulation', 'type': 'group', 'children': [
+             {'name': 'Modulation/CMMR', 'type': 'group', 'children': [
                   {'name': 'Frequency', 'type': 'float', 'value': 40., 'step': 5.0, 'limits': [1., 1000.0],
                     'suffix': 'Hz', 'default': 40.0},
                   {'name': 'Depth', 'type': 'float', 'value': 50.0, 'step': 5.0, 'limits': [0.0, 200.0],
                     'suffix': '%', 'default': 50.},
+                  {'name': 'CMMR Flanking Type', 'type': 'list', 'values': ['None', '3Tone', 'Noise'], 'value': 'Noise'},
+                  {'name': 'CMMR Flanking Phase', 'type': 'list', 'values': ['Comodulated', 'Deviant', 'Random'],
+                   'value': 'Noise'},
+                  {'name': 'CMMR Flanking Bands', 'type': 'int', 'value': 3, 'step': 1, 'limits': [0, 10],
+                   'default': '3'},
+                  {'name': 'CMMR Flanking Spacing', 'type': 'float', 'value': 0.5, 'step': 1/8., 
+                      'limits': [1/16., 2.], 'suffix': 'octaves', 'default': 0.5},
              ]},
              {'name': 'RSS Params', 'type': 'group', 'children': [
                  {'name': 'CF', 'type': 'float', 'value': 16.0, 'step': 2.0, 'limits': [1.0, 64.],
@@ -413,6 +439,7 @@ class BuildGui(object):
         self.btn_pause = QtGui.QPushButton("Pause")
         self.btn_continue = QtGui.QPushButton("Continue")
         self.btn_stop = QtGui.QPushButton("Stop")
+        self.btn_quit = QtGui.QPushButton("Quit")
         
         hbox = QtGui.QGridLayout()
         hbox.setColumnStretch(0, 1)
@@ -424,6 +451,7 @@ class BuildGui(object):
         hbox.addWidget(self.btn_pause, 1, 1, 1, 1)
         hbox.addWidget(self.btn_continue, 1, 2, 1, 1)
         hbox.addWidget(self.btn_stop, 0, 2, 1, 1)
+        hbox.addWidget(self.btn_quit, 0, 3, 1, 1)
         
         self.layout.addLayout(hbox, 0, 0, 1, 2)
         
@@ -495,6 +523,7 @@ class BuildGui(object):
         self.btn_pause.clicked.connect(self.controller.pause_run)
         self.btn_continue.clicked.connect(self.controller.continue_run)
         self.btn_stop.clicked.connect(self.controller.stop_run)
+        self.btn_quit.clicked.connect(self.controller.quit())
         
 
 if __name__ == '__main__':
@@ -504,3 +533,4 @@ if __name__ == '__main__':
     ## Event loop will wait for the GUI to activate the updater and start sampling.
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
+    gui.controller.quit()

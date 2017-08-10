@@ -433,6 +433,41 @@ class SAMTone(Sound):
                        o['dbspl'], o['pip_duration'], o['pip_start'])
         return sinusoidal_modulation(self.time, basetone, o['pip_start'], o['fmod'], o['dmod'], 0.)
 
+class ComodulationMasking(Sound):
+    """
+    rate=Fs, duration=self.duration, f0=self.tone_frequency*1000., 
+                   dbspl=level, fmod=self.fMod, dmod=self.dMod,
+                   flanking_type=self.CMMR_flanking_type, flanking_spacing=self.CMMR_flanking_spacing,
+                   flanking_phase=self.CMMR_flanking_phase, flanking_bands=self.CMMR_flanking_bands,
+                   )
+    
+    """
+    def __init__(self, **kwds):
+        for k in ['rate', 'pip_duration', 'f0', 'dbspl', 'fmod', 'dmod', 'pip_start', 'ramp_duration',
+                  'flanking_type', 'flanking_spacing', 'flanking_phase', 'flanking_bands']:
+            if k not in kwds:
+                raise TypeError("Missing required argument '%s'" % k)
+        Sound.__init__(self, **kwds)
+
+    def generate(self):
+        
+        o = self.opts
+        # start with center tone
+        basetone = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'], 
+                       o['dbspl'], o['pip_duration'], o['pip_start'])
+        basetone = sinusoidal_modulation(self.time, basetone, o['pip_start'], o['fmod'], o['dmod'], 0.)
+        if o['flanking_type'] == None:
+            return basetone
+        if o['flanking_type'] == '3Tone':
+            flankfs = [o['f0']*(k+1)*o['flanking_spacing'] for k in range(o['flanking_bands']) ]
+            flankfs.append([o['f0']/((k+1)*o['flanking_spacing']) for k in range(o['flanking_bands']) ]
+            if o['flanking_phase'] == 'comodulated':
+                ph = np.zeros(len(flankfs))
+            elif o['flanking_phase'] == 'codeviant':
+                ph = 2.0*np.pi*np.arange(-o['flanking_bands'], o['flanking_bands']+1, 1)/o['flanking_bands']
+        assert 1 == 0  # force fail if you try to do cmr, not complete yet
+        
+        
 
 class DynamicRipple(Sound):
     def __init__(self, **kwds):
