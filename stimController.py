@@ -13,6 +13,7 @@ import sound
 
 class Controller(object):
     def __init__(self, ptreedata, plots, img):
+        self.Vscale = 5.0  # CRITICAL: voltate for staqndard tone level
         self.tone_frequency = 4.0  # tone pip frequency, Hz
         self.duration = 0.2  # stimulus duration, ms
         self.delay = 0.01  # delay to start of stimulus, s
@@ -83,13 +84,14 @@ class Controller(object):
             # Parameters and user-supplied information
             #
             #print('Path[1]: ', path[1])
+
             if path[0] == 'Stimulus':
                 if path[1] == 'Protocol':
                     self.protocol = data
                 if path[1] == 'Repetitions':
                     self.nreps = data
                 if path[1] == 'Interstimulus Interval':
-                    self.interstimlus_interval = data
+                    self.interstimulus_interval = data
                 if path[1] == 'Duration':
                     self.duration = data
                 if path[1] == 'Delay':
@@ -162,7 +164,7 @@ class Controller(object):
             if p == 'Repetitions':
                 self.nreps = p['value']
             if p == 'Interstimulus Interval':
-                self.interstimulus_nterval = p['value']
+                self.interstimulus_interval = p['value']
             if p == 'Duration':
                 self.duration = p['value']
             if p == 'Delay':
@@ -224,8 +226,8 @@ class Controller(object):
         # self.timer.start(self.readInterval * 1000)
         # self.timedWrite.start(30 * 1000.)  # update file in 1 minute increments
         #print ('Playing %s' % self.protocol)
-        self.PS.play_sound(self.wave.sound, self.wave.sound, self.PS.out_sampleFreq)
-        
+        self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale, samplefreq=self.PS.out_sampleFreq,
+            isi=self.interstimulus_interval, reps=self.nreps)
     
     def stop_run(self):
         """
@@ -260,7 +262,7 @@ class Controller(object):
         """
         Fs = self.PS.out_sampleFreq  # sample frequency
         stim = self.protocol
-        level = 65.
+        level = None  # level is dbspl normally for models, but set to None for TDT (5V tone reference)
         seed = 32767
         #print('stim: ', stim)
         if stim in ['Clicks']:
@@ -314,12 +316,12 @@ class Controller(object):
                 pip_start=[self.delay], amp_group_size=self.RSS_grouping, amp_sd=self.RSS_sd,
                 spacing=self.RSS_spacing, octaves=self.RSS_octaves)  
 
-        self.wave = wave
+        self.wave = wave # rescale the waveform
 
     def show_wave(self):
         self.prepare_run()  # force computation/setup of stimulus
         self.plots['Wave'].clear()
-        self.plots['Wave'].plot(self.wave.time, self.wave.sound)
+        self.plots['Wave'].plot(self.wave.time, self.wave.sound*self.Vscale)
     
     # redundant: pyqtgraph provides spectrum plot
     # def show_spectrum(self):
@@ -333,7 +335,7 @@ class Controller(object):
     def show_spectrogram(self):
         self.prepare_run()
         Fs = self.PS.out_sampleFreq
-        specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wave.sound, nperseg=int(0.01*Fs), fs=Fs)
+        specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wave.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
         thr = 0. # 1e-8
         Sxx[Sxx <= thr] = thr
         # pos = np.array([0., 1., 0.5, 0.25, 0.75])
@@ -348,7 +350,7 @@ class Controller(object):
         self.img.setImage(Sxx.T)
         
         # also show the long term spectrum.
-        f, Pxx_spec = scipy.signal.periodogram(self.wave.sound, Fs) #, window='flattop', nperseg=8192,
+        f, Pxx_spec = scipy.signal.periodogram(self.wave.sound*self.Vscale, Fs) #, window='flattop', nperseg=8192,
                        # noverlap=512, scaling='spectrum')
         self.plots['LongTermSpec'].clear()
         self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
@@ -383,7 +385,7 @@ class BuildGui(object):
                 {'name': 'Frequencies', 'type': 'str', 'value': '4;48/8l',
                     'suffix': 'kHz', 'default': '4;48/8l'},
                                             
-                {'name': 'Repetitions', 'type': 'int', 'value': 10, 'limits': [1, 10000], 'default': 10, 'tip': 'Stimuli per sweep'},
+                {'name': 'Repetitions', 'type': 'int', 'value': 5, 'limits': [1, 10000], 'default': 5, 'tip': 'Stimuli per sweep'},
                 {'name': 'Interstimulus Interval', 'type': 'float', 'value': 1., 'limits': [0.2, 300.], 
                     'suffix': 's', 'default': 1.0, 'tip': 'Time between stimuli in a sweep'},
                 {'name': 'Randomize', 'type': 'bool', 'value': False, 'default': False, 'tip': 'Randomize presentation order in all dimensions'},

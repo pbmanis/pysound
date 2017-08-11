@@ -184,15 +184,15 @@ class PyStim:
     def setup_RZ5D(self):
         self.RZ5D = win32com.client.Dispatch('TDevAcc.X')
         self.RZ5D.ConnectServer('Local')
-        self.getParams_RZ5D()
-
+  
         # RZ5D Parameter tag definitions - mostly from the TDT CoreSweep macro
         self.RZ5D_ParTags = {'SweepPeriod': 'ACQ_16ch.zSwPeriod',
                              'SweepTrigger': 'ACQ_16Ch.SweepTrigger',
                              'TotalSweepCount': 'ACQ_16ch.zSwCount',
-                             'CurrentSweep': 'ACQ_16ch.SweepNum',
-                             'Done': 'ACQ_16ch.SweepDone',
+                             'CurrentSweep': 'ACQ_16ch.zSwNum',
+                             'SweepDone': 'ACQ_16ch.zSwDone',
                              }
+        self.getParams_RZ5D()
 
         self.RZ5DParams['SampleFrequency'] = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name']) # get device sample frequency
 
@@ -200,7 +200,7 @@ class PyStim:
 
         self.RZ5D.SetTargetVal(self.RZ5D_ParTags['TotalSweepCount'], 3)
 
-        self.RZ5D.SetTargetVal(self.RZ5D_ParTags['SweepPeriod'], 0.5*self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])) # initially set for one second
+        self.RZ5D.SetTargetVal(self.RZ5D_ParTags['SweepPeriod'], 1.0*self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])) # initially set for one second
         self.RZ5DParams['zSwPeriod'] = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepPeriod'])
         return True
 
@@ -209,7 +209,7 @@ class PyStim:
         self.RZ5DParams['device_name'] = self.RZ5D.GetDeviceName(0)
         self.RZ5DParams['RCO'] = self.RZ5D.GetDeviceRCO(self.RZ5DParams['device_name'])
         self.RZ5DParams['device_status'] = self.RZ5D.GetDeviceStatus(self.RZ5DParams['device_name'])
-        self.RZ5DParams['zSwCount'] = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['TotalSweepCount])
+        self.RZ5DParams['zSwCount'] = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['TotalSweepCount'])
         
         
     def show_RZ5D(self):
@@ -231,10 +231,12 @@ class PyStim:
                 return
             print('         Tag = {0:s}'.format(tag))
 
-    def present_stim(self, waveforms, stimulus_period=1.0):
+    def present_stim(self, waveforms, stimulus_period=1.0, reps=1):
         sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
+        print('sf: ', sf, 'stimulus period: ', stimulus_period)
         self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
+        self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
         self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
         time.sleep(0.01) # just wait a few msec
         self.RZ5D.SetSysMode(RZ5D_Run)
@@ -277,7 +279,7 @@ class PyStim:
                 self.PA5.ConnectPA5("USB", 2)
                 self.PA5.SetAtten(atten_right)
 
-    def play_sound(self, wavel, waver=None, samplefreq=44100, postduration = 0.35, attns=[20., 20.]):
+    def play_sound(self, wavel, waver=None, samplefreq=44100, postduration = 0.35, attns=[20., 20.], isi=1.0, reps=1):
         """
         play_sound sends the sound out to an audio device.
         In the absence of NI card, and TDT system, we use the system audio device (sound card, etc)
@@ -333,17 +335,33 @@ class PyStim:
             #self.ch2 = rwave[1::2]
             return
         
-        stimulus_duration = len(wavel)*samplefreq + postduration
-        
+        samplefreq = self.out_sampleFreq
+        stimulus_duration = isi*reps # len(wavel)*samplefreq + postduration
+        pts_per_rep = int(float(isi)*samplefreq)
+ #       print('ptsperrep, wavel: ', pts_per_rep, wavel.shape, samplefreq, self.out_sampleFreq)
+        if wavel.shape[0] < pts_per_rep:
+  #           print ('extending wavel')
+             wavel = np.concatenate((wavel, np.zeros(pts_per_rep-wavel.shape[0])), axis=0)
+        wavel = np.tile(wavel, reps)
         if 'PA5' in self.hardware:
             self.setAttens(atten_left=attns[0])
         
-        if 'NIDAQ' in self.hardware:
-            self.prepare_NIDAQ(wavel, waver)
-        
         if 'RZ5D' in self.hardware:
-            self.present_stim(wavel)
-            time.sleep(2.0)
+            swcount = -1
+            self.present_stim(wavel, isi, reps)  # this sets up the NI card as well.
+            deadmantimer = isi*(reps+1)+0.5  # just in case it doesn't stop as it should
+            start_time = time.time()  # deadman start time
+#            print('done? ', self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']))
+            while self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']) == 0:  # wait for zSwDone to be set
+                cs = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['CurrentSweep'])
+                if cs > swcount:
+                    print('   Sweep = %d' % cs)
+                    swcount = swcount + 1
+                time.sleep(0.1)
+                elapsed_time = time.time() - start_time  # elapsed time is in seconds
+                if elapsed_time > deadmantimer:
+                    print('deadmanexit')
+                    break
             self.RZ5D.SetSysMode(RZ5D_Standby)
             self.task.stop()
             self.setAttens(atten_left=120)
@@ -405,17 +423,18 @@ class PyStim:
 
     def prepare_NIDAQ(self, wavel, waver = None):
         samplefreq = self.out_sampleFreq
+        print('niddaq samplefreq: ', samplefreq)
         self.task = self.NIDevice.createTask()  # creat a task for the NI 6731 board.
         self.task.CreateAOVoltageChan("/%s/ao0" % self.NIDevicename, "ao0", -10., 10.,
                                       nidaq.Val_Volts, None)
-        self.task.CreateAOVoltageChan("/%s/ao1" % self.NIDevicename, "ao1", -10., 10.,
-                                      nidaq.Val_Volts, None) # use 2 channels
+      #  self.task.CreateAOVoltageChan("/%s/ao1" % self.NIDevicename, "ao1", -10., 10.,
+      #                                nidaq.Val_Volts, None) # use 2 channels
         wlen = len(wavel)
-        daqwave = np.zeros(wlen)
+#        daqwave = np.zeros(wlen)
         (wavel, clipl) = self.clip(wavel, 10.0)
         #(waver, clipr) = self.clip(waver, 10.0)
         
-        daqwave[0:len(wavel)] = wavel
+#        daqwave[0:len(wavel)] = wavel
        # daqwave[len(wavel):] = waver # concatenate channels (using "groupbychannel" in writeanalogf64)
         self.task.CfgSampClkTiming(None, samplefreq, nidaq.Val_Rising,
                                    nidaq.Val_FiniteSamps, len(wavel))
@@ -429,18 +448,22 @@ class PyStim:
         This is just a test - but it might work.
         Look in NIDAQmx.h, strip the "DAQmx" from the function name.
         """
-        self.task.SetStartTrigType(nidaq.Val_DigEdge)
         self.task.CfgDigEdgeStartTrig('PFI0',  nidaq.Val_Rising)
+        self.task.SetStartTrigType(nidaq.Val_DigEdge)
         # nidaq.Write_RegenMode
-        regen = self.task.GetWriteRegenMode(self.NIDevicename);
-        #int32 __CFUNC DAQmxSetWriteRegenMode(TaskHandle taskHandle, int32 data);
-        if regen == nidaq.Val_AllowRegen:
-            print ('Regen mode allowed: ', regen) 
-        elif regen == nidaq.Val_DoNotAllowRegen:
-            print( 'regen mode not allowed: ', regen)
+        # regen = self.task.GetWriteRegenMode(self.NIDevicename);
+        # #int32 __CFUNC DAQmxSetWriteRegenMode(TaskHandle taskHandle, int32 data);
+        # self.task.SetWriteRegenMode(nidaq.Val_AllowRegen);
+        # regen = self.task.GetWriteRegenMode(self.NIDevicename);
+        # if regen == nidaq.Val_AllowRegen:
+        #     print ('Regen mode allowed: ', regen) 
+        # elif regen == nidaq.Val_DoNotAllowRegen:
+        #     print( 'regen mode not allowed: ', regen)
+        # else:
+        #     print( 'regenmode was ???: ', regen)
             
-        self.task.SetStartTrigRetriggerable(True) # so we set up a short waveform and let NI get retriggered by Rz5d 
-        self.task.write(daqwave)
+        #self.task.SetStartTrigRetriggerable(True) # so we set up a short waveform and let NI get retriggered by Rz5d 
+        self.task.write(wavel)
         self.task.start()
   
     def retrieveRP21_inputs(self):

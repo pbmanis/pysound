@@ -550,14 +550,17 @@ class RandomSpectrumShape(Sound):
         highf = o['f0']*octaves
         freqlist = np.logspace(np.log2(lowf), np.log2(highf), num=o['spacing']*octaves*2, endpoint=True, base=2)
         amplist = np.zeros_like(freqlist)
+        db = o['dbspl']
         # assign amplitudes
+        if db == None:
+            db = 100.
         groupsize = o['amp_group_size']
         for i in range(0, len(freqlist), groupsize):
             if o['amp_sd'] > 0.:
                 a = np.random.normal(scale=o['amp_sd'])
             else:
                 a = 0.
-            amplist[i:i+groupsize] = 20*np.log10(a + o['dbspl'])
+            amplist[i:i+groupsize] = 20*np.log10(a + db)
         for i in range(len(freqlist)):
 #            print(' f: %8.3f   a: %8.1f' % (freqlist[i], amplist[i]))
             wave = piptone(self.time, o['ramp_duration'], o['rate'], freqlist[i],
@@ -568,7 +571,7 @@ class RandomSpectrumShape(Sound):
                 result = result + wave
         # import matplotlib.pyplot as mpl
         # mpl.plot(self.time, result)
-        return result
+        return result/len(freqlist)  # scale by number of sinusoids added
 
 def make_ssn(rate, duration, sig, samplingrate):
         """
@@ -637,7 +640,10 @@ def dbspl_to_pa(dbspl, ref=20e-6):
     """ Convert dBSPL to Pascals (rms). By default, the reference pressure is
     20 uPa.
     """
-    return ref * 10**(dbspl / 20)
+    if dbspl  is not None:
+        return 1.0
+    else:
+        return ref * 10**(dbspl / 20)
 
 
 class SAMNoise(Sound):
@@ -842,8 +848,10 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
     for start in pip_start:
         # make pip template
         pip_pts = int(pip_dur * Fs) + 1
-        pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
-
+        if dBSPL is not None:
+            pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
+        else:
+            pip = rng.randn(pip_pts)
         # add ramp
         ramp_pts = int(rt * Fs) + 1
         ramp = np.sin(np.linspace(0, np.pi/2., ramp_pts))**2
@@ -889,7 +897,10 @@ def piptone(t, rt, Fs, F0, dBSPL, pip_dur, pip_start, pip_phase=0.):
     # make pip template
     pip_pts = int(pip_dur * Fs) + 1
     pip_t = np.linspace(0, pip_dur, pip_pts)
-    pip = np.sqrt(2) * dbspl_to_pa(dBSPL) * np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus
+    if dBSPL is not None:
+        pip = np.sqrt(2) * dbspl_to_pa(dBSPL) * np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus
+    else:
+        pip = np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus
 
     # add ramp
     ramp_pts = int(rt * Fs) + 1
@@ -937,7 +948,10 @@ def clicks(t, Fs, dBSPL, click_duration, click_starts):
 
     """
     swave = np.zeros(t.size)
-    amp = dbspl_to_pa(dBSPL)
+    if dBSPL is not None:
+        amp = dbspl_to_pa(dBSPL)
+    else:
+        amp = 1.0
     td = int(np.floor(click_duration * Fs))
     nclicks = len(click_starts)
     for n in range(nclicks):
@@ -979,6 +993,7 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
     
     sw = scipy.signal.chirp(t, freqs[0], duration, freqs[1],
         method=ramp, phi=0, vertex_zero=True)
-    sw = np.sqrt(2) * dbspl_to_pa(dBSPL) * sw
+    if dBSPL is not None:
+        sw = np.sqrt(2) * dbspl_to_pa(dBSPL) * sw
     return sw
 
