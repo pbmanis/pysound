@@ -472,9 +472,12 @@ class PyStim:
     def HwOff(self): # turn the hardware off.
         
         if 'Soundcard' in self.hardware:
-            self.stream.stop_stream()
-            self.stream.close()
-            self.audio.terminate()
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+                self.audio.terminate()
+            except:
+                pass  # possible we never created teh stream...
         
         if 'NIDAQ' in self.hardware:
             if self.task is not None:
