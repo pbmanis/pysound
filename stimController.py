@@ -494,9 +494,24 @@ class BuildGui(object):
         l2.setContentsMargins(10,10,10,10)
         self.plots['Plot1'] = l2.addPlot(Title="Plot1")
 #        self.l2.addWidget(self.plots['Plot1'])
-        self.plots['Plot1'].getAxis('bottom').setLabel('t (s)')
-        self.plots['Plot1'].getAxis('left').setLabel('V')
-        self.plots['Plot1'].setTitle('Plot 1')
+        self.plots['Plot1'].getAxis('bottom').setLabel('F (kHz)')
+        self.plots['Plot1'].getAxis('left').setLabel('dB SPL')
+        self.plots['Plot1'].setTitle('FRA')
+        self.plots['Plot1'].setXRange(2, 72, padding=0)
+        #self.plots['Plot1'].setLogMode(x=True)
+        self.plots['Plot1'].setYRange(-10, 110, padding=0)
+        xd = np.arange(4, 64, 1)
+        yd = np.arange(0, 100, 2.5)
+        spots = []
+        self.lastPoint = None
+        for i in range(xd.shape[0]):
+            for j in range(yd.shape[0]):
+                spots.append({'pos': (xd[i], yd[j]), 'size': 5, 'pen': {'color': 'w', 'width': 1, 'alpha': 0.5},
+                    'brush': pg.mkBrush('b')})
+        self.spi = pg.ScatterPlotItem(size=5, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
+        self.spi.addPoints(spots)
+        self.plots['Plot1'].addItem(self.spi)
+        self.spi.sigClicked.connect(self.getClickedLocation)
         
         # self.plots['Plot2'] = pg.plot(Title="Plot2")
        #  self.l2.addWidget(self.plots['Plot2'])
@@ -528,8 +543,23 @@ class BuildGui(object):
         self.btn_continue.clicked.connect(self.controller.continue_run)
         self.btn_stop.clicked.connect(self.controller.stop_run)
         self.btn_quit.clicked.connect(self.controller.quit)
-        
 
+    def getClickedLocation(self, points):
+        # print (dir(points))
+        # print (points.event())
+        # print('mouse click: ', points.mouseClickEvent(points.event()))
+        # print('mouse doubleclick: ', points.mouseDoubleClickEvent(points.event()))
+        self.mousePoint = points.ptsClicked[0].viewPos()
+        print('mousepoint: ', self.mousePoint.x(), self.mousePoint.y()) 
+        points.ptsClicked[0].setBrush(pg.mkBrush('r'))
+        points.ptsClicked[0].setSize(5)
+        if self.lastPoint is None:
+            self.lastPoint = points.ptsClicked[0]
+        else:
+            self.lastPoint.setBrush(pg.mkBrush('b'))
+            self.lastPoint.setSize(5)
+            self.lastPoint = points.ptsClicked[0]
+    
 if __name__ == '__main__':
     gui = BuildGui()
     
