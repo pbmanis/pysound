@@ -301,6 +301,21 @@ class PyStim:
         
         """  
         
+        # create an output waveform that has the stimulus repeated reps times with the selected ISI
+        samplefreq = self.out_sampleFreq
+        stimulus_duration = isi*reps # len(wavel)*samplefreq + postduration
+        pts_per_rep = int(float(isi)*samplefreq)
+        if wavel.shape[0] < pts_per_rep:
+            wavel = np.concatenate((wavel, np.zeros(pts_per_rep-wavel.shape[0])), axis=0)
+        wavel = np.tile(wavel, reps)
+        if waver is not None:
+            if waver.shape[0] < pts_per_rep:
+                waver = np.concatenate((waver, np.zeros(pts_per_rep-waver.shape[0])), axis=0)
+            waver = np.tile(waver, reps)
+        
+        
+        # different approaches to playing out the sound for different hardware configuration:
+        
         if 'pyaudio' in self.hardware:
             self.audio = pyaudio.PyAudio()
             chunk = 1024
@@ -324,7 +339,7 @@ class PyStim:
             (waver, clipr) = self.clip(waver, 20.0)
             (wavel, clipl) = self.clip(wavel, 20.0)
             wave[0::2] = waver 
-            wave[1::2] = wavel  # order chosen so matches entymotic earphones on my macbookpro.
+            wave[1::2] = wavel  # order chosen so matches etymotic earphones on my macbookpro.
             postdur =  int(float(postduration*self.in_sampleFreq))
             #rwave = read_array(len(wavel)+postdur, CHANNELS)
             write_array(self.stream, wave)
@@ -335,14 +350,6 @@ class PyStim:
             #self.ch2 = rwave[1::2]
             return
         
-        samplefreq = self.out_sampleFreq
-        stimulus_duration = isi*reps # len(wavel)*samplefreq + postduration
-        pts_per_rep = int(float(isi)*samplefreq)
- #       print('ptsperrep, wavel: ', pts_per_rep, wavel.shape, samplefreq, self.out_sampleFreq)
-        if wavel.shape[0] < pts_per_rep:
-  #           print ('extending wavel')
-             wavel = np.concatenate((wavel, np.zeros(pts_per_rep-wavel.shape[0])), axis=0)
-        wavel = np.tile(wavel, reps)
         if 'PA5' in self.hardware:
             self.setAttens(atten_left=attns[0])
         
@@ -387,7 +394,7 @@ class PyStim:
             # could not determine when buffer was full/acquisition was done.
             
             if 'PA5' in self.hardware:
-                self.setAttens(10.0,10.0) # set equal, but not at minimum...
+                self.setAttens(atten_left=attns[0], atten_right=attns[1]) # set equal, but not at minimum...
 
             self.task.start() # start the NI AO task
             
@@ -400,8 +407,6 @@ class PyStim:
                     self.task.stop()
                 return
             
- #           self.task.stop() # done, so stop the output.
-            
             if 'PA5' in self.hardware:
                 self.setAttens() # attenuators down (there is noise otherwise)
             # read the data...
@@ -413,7 +418,6 @@ class PyStim:
                 return
                 curindex1 = self.RP21.GetTagVal('Index1')
                 curindex2 = self.RP21.GetTagVal('Index2')
-#            self.task.stop()   
             
             self.ch2 = self.RP21.ReadTagV('Data_out2', 0, Ndata)
             # ch2 = ch2 - mean(ch2[1:int(Ndata/20)]) # baseline: first 5% of trace
@@ -438,30 +442,23 @@ class PyStim:
        # daqwave[len(wavel):] = waver # concatenate channels (using "groupbychannel" in writeanalogf64)
         self.task.CfgSampClkTiming(None, samplefreq, nidaq.Val_Rising,
                                    nidaq.Val_FiniteSamps, len(wavel))
-        #self.task.CfgDigEdgeStartTrig (taskHandle, "PFI0", nidaq.Val_Rising);
         
-        # DAQmxCfgDigEdgeStartTrig (taskHandle, "PFI0", DAQmx_Val_Rising);
         # set up triggering for the NI (hardware trigger)
-        
-        # Need to set up count of trigger events, but not seeing it in NIDAQmx.h
-        """
-        This is just a test - but it might work.
-        Look in NIDAQmx.h, strip the "DAQmx" from the function name.
-        """
         self.task.CfgDigEdgeStartTrig('PFI0',  nidaq.Val_Rising)
         self.task.SetStartTrigType(nidaq.Val_DigEdge)
-        # nidaq.Write_RegenMode
-        # regen = self.task.GetWriteRegenMode(self.NIDevicename);
-        # #int32 __CFUNC DAQmxSetWriteRegenMode(TaskHandle taskHandle, int32 data);
-        # self.task.SetWriteRegenMode(nidaq.Val_AllowRegen);
-        # regen = self.task.GetWriteRegenMode(self.NIDevicename);
-        # if regen == nidaq.Val_AllowRegen:
-        #     print ('Regen mode allowed: ', regen) 
-        # elif regen == nidaq.Val_DoNotAllowRegen:
-        #     print( 'regen mode not allowed: ', regen)
-        # else:
-        #     print( 'regenmode was ???: ', regen)
-            
+
+        # Need to set up count of trigger events, but not seeing it in NIDAQmx.h
+        # It appears to require programming both clocks in the card:
+        # see http://www.ni.com/tutorial/5382/en/
+        # Counter 1 is set as the sample rate clock. It goes both to the Counter 2
+        # and to the AO. 
+        # A "Samples Per Channel" value is set both in Counter 2, and AO
+        # The Counter 2 output becomes the cock source for the AO task
+        # Counter 2 is set up to be triggered from the hardware source
+        # The Counter 2 task is configured for finite retriggerable pulse generation
+        # The AO task is configured for continuous operation (but this is controlled by the
+        # counters)
+                    
         #self.task.SetStartTrigRetriggerable(True) # so we set up a short waveform and let NI get retriggered by Rz5d 
         self.task.write(wavel)
         self.task.start()

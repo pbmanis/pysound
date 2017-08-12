@@ -5,41 +5,57 @@ import datetime
 import numpy as np
 import scipy.signal
 import scipy.io.wavfile as wav
+from collections import OrderedDict
 import pyqtgraph as pg
 from PyQt4 import QtGui, QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
 import pystim
+import Utility
 import sound
+import pprint
+
+pp = pprint.PrettyPrinter(indent=4)
+
 
 class Controller(object):
     def __init__(self, ptreedata, plots, img):
         self.Vscale = 5.0  # CRITICAL: voltate for staqndard tone level
-        self.tone_frequency = 4.0  # tone pip frequency, Hz
-        self.duration = 0.2  # stimulus duration, ms
-        self.delay = 0.01  # delay to start of stimulus, s
-        self.RI = '20;100/10'  # seqparse for Rate-Intensity intensity series
-        self.FRA = '4;48/8l'  # seqparse for tone pip FRA
-        self.dMod = 50.  # modulation depth
-        self.fMod = 40. # modulation frequency
-        self.RF = 2.5  # rise-fall time, ms
-        self.nreps = 5  # repetitions in a single sweep
-        self.interstimulus_interval = 1.0  # time between stimuli, s
-        self.protocol = 'Tone RI'
-        self.randomize = False  # randomize order of presentation (or not...)
         self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
+         
         
-        self.RSS_cf = 16.0
-        self.RSS_grouping = 8
-        self.RSS_octaves = 3
-        self.RSS_sd = 12.
-        self.RSS_spacing = 64
+        self.CPars = OrderedDict()
         
-        self.CMMR_flanking_bands = 3  # flanking bands
-        self.CMMR_flanking_phase = 'comodulated'  # flanking bands comodulated 
-        self.CMMR_flanking_spacing = 0.5  # octaves
+#        self.setAllParameters(ptreedata)
+        
+        self.CPars['tone_frequency'] = 4.0  # tone pip frequency, Hz
+        self.CPars['duration'] = 0.2  # stimulus duration, ms
+        self.CPars['delay'] = 0.01  # delay to start of stimulus, s
+        self.CPars['RI'] = '20;100/10'  # seqparse for Rate-Intensity intensity series
+        self.CPars['frequencies'] = '4;48/8l'  # seqparse for tone pip FRA
+        self.CPars['dMod'] = 50.  # modulation depth
+        self.CPars['fMod'] = 40. # modulation frequency
+        self.CPars['RF'] = 2.5  # rise-fall time, ms
+        self.CPars['nreps'] = 5  # repetitions in a single sweep
+        self.CPars['interstimulus_interval'] = 1.0  # time between stimuli, s
+        self.CPars['protocol'] = 'Tone RI'
+        self.CPars['randomize'] = False  # randomize order of presentation (or not...)
+        
+        self.CPars['click_interval'] = 50.
+        self.CPars['click_N'] = 4
+        self.CPars['click_duration'] = 1e-4
+        
+        self.CPars['RSS_cf'] = 16.0
+        self.CPars['RSS_grouping'] = 8
+        self.CPars['RSS_octaves'] = 3
+        self.CPars['RSS_SD'] = 12.
+        self.CPars['RSS_spacing'] = 64
+        
+        self.CPars['CMMR_flanking_bands'] = 3  # flanking bands
+        self.CPars['CMMR_flanking_phase'] = 'comodulated'  # flanking bands comodulated 
+        self.CPars['CMMR_flanking_spacing'] = 0.5  # octaves
         
                 
     # def setAllParameters(self, params):
@@ -87,64 +103,60 @@ class Controller(object):
 
             if path[0] == 'Stimulus':
                 if path[1] == 'Protocol':
-                    self.protocol = data
+                    self.CPars['protocol'] = data
                 if path[1] == 'Repetitions':
-                    self.nreps = data
+                    self.CPars['nreps'] = data
                 if path[1] == 'Interstimulus Interval':
-                    self.interstimulus_interval = data
+                    self.CPars['interstimulus_interval'] = data
                 if path[1] == 'Duration':
-                    self.duration = data
+                    self.CPars['duration'] = data
                 if path[1] == 'Delay':
-                    self.delay = data
+                    self.CPars['delay'] = data
                 if path[1] == 'Tone Frequency':
-                    self.tone_frequency = data
+                    self.CPars['tone_frequency'] = data
                 if path[1] == 'Rise-Fall':
-                    self.RF = data
+                    self.CPars['RF'] = data
                 if path[1] == 'Intensities':
-                    self.RI = data
+                    self.CPars['RI'] = data
                 if path[1] == 'Frequencies':
-                    self.FRA = data
+                    self.CPars['frequencies'] = data
+
+            if path[0] == 'Clicks':
+                if path[1] == 'Interval':
+                    self.CPars['click_interval'] = data
+                if path[1] == 'Number':
+                    self.CPars['click_N'] = data
+                if path[1] == 'Duration':
+                    self.CPars['click_duration'] = data
+            
             if path[0] == 'Modulation':
                 if path[1] == 'Modulation Depth':
-                    self.dMod = data
+                    self.CPars['dMod'] = data
                 if path[1] == 'Modulation Frequency':
-                    self.fMod = data
+                    self.CPars['fMod'] = data
                 if path[1] == 'CMMR Flanking Type':
                     self.CMMR_flanking_type = data
                 if path[1] == 'CMMR Flanking Bands':
-                    self.CMMR_flanking_bands = data
+                    self.CPars['CMMR_flanking_bands'] = data
                 if path[1] == 'CMMR Flanking Phase':
-                    self.CMMR_flanking_phase = data
+                    self.CPars['CMMR_flanking_phase'] = data
                 if path[1] == 'CMMR Flanking Spacing':
-                    self.CMMR_flanking_spacing = data
+                    self.CPars['CMMR_flanking_spacing'] = data
                     
             if path[0] == 'RSS Params':
                 if path[1] == 'CF':
-                    self.RSS_cf = data
+                    self.CPars['RSS_cf'] = data
                 if path[1] == 'Grouping':
-                    self.RSS_grouping = data
+                    self.CPars['RSS_grouping'] = data
                 if path[1] == 'Octaves':
-                    self.RSS_octaves = data
+                    self.CPars['RSS_octaves'] = data
                 if path[1] == 'Level SD':
-                    self.RSS_sd = data
+                    self.CPars['RSS_SD'] = data
                 if path[1] == 'Spacing':
-                    self.RSS_spacing = data
-            #
-            # Actions: (now handled by Qt buttons outside ptree)
-            #
-            # if len(path) == 1:
-            #     if path[0] == 'Show Waveform':
-            #         self.show_wave()
-            #     if path[0] == 'Show Spectrum':
-            #         self.show_spectrogram()
-            #     if path[0] == 'Run':
-            #         self.run()
-            #     if path[0] == 'Pause':
-            #         self.pause_run()
-            #     if path[0] == 'Continue':
-            #         self.continut_run()
-            #     if path[0] == 'Stop':
-            #         fn = self.stop_run()
+                    self.CPars['RSS_spacing'] = data
+    
+    def showParameters(self):
+        pp.pprint(self.CPars)
     
     def setAllParameters(self, params):
         """
@@ -162,25 +174,25 @@ class Controller(object):
             if p['type'] == 'action':
                 continue
             if p == 'Repetitions':
-                self.nreps = p['value']
+                self.CPars['nreps'] = p['value']
             if p == 'Interstimulus Interval':
-                self.interstimulus_interval = p['value']
+                self.CPars['interstimulus_interval'] = p['value']
             if p == 'Duration':
-                self.duration = p['value']
+                self.CPars['duration'] = p['value']
             if p == 'Delay':
-                self.delay = p['value']
+                self.CPars['delay'] = p['value']
             if p == 'Tone Frequency':
-                self.tone_frequency = p['value']
+                self.CPars['tone_frequency'] = p['value']
             if p == 'Rise-Fall':
-                self.RF = p['value']
+                self.CPars['RF'] = p['value']
             if p == 'Intensities':
-                self.RI = p['value']
+                self.CPars['RI'] = p['value']
             if p == 'Frequencies':
-                self.FRA = p['value']
+                self.CPars['frequencies'] = p['value']
             if p == 'Modulation Depth':
-                self.dMod = p['value']
+                self.CPars['dMod'] = p['value']
             if p == 'Modulation Frequency':
-                self.fMod = p['value']
+                self.CPars['fMod'] = p['value']
 
     def run(self):
         """
@@ -195,15 +207,19 @@ class Controller(object):
         -------
         Nothing
         """
+
+        self.showParameters()
         
         self.runtime = 0
         self.NSamples = 0
+        self.running = True
+        self.stop_hit = False
         self.startTime = datetime.datetime.now()
         self.prepare_run()  # reset the data arrays
         self.continue_run()
 
     def pause_run(self):
-        pass
+        self.pause_hit = True
         
     def continue_run(self):
         """
@@ -222,13 +238,58 @@ class Controller(object):
         # self.timer.timeout.connect(updater.update)
         self.timedWrite = QtCore.QTimer()
         # self.timedWrite.timeout.connect(updater.storeData)
-        #self.update() # do the first update, then start time
+        # self.update() # do the first update, then start time
         # self.timer.start(self.readInterval * 1000)
         # self.timedWrite.start(30 * 1000.)  # update file in 1 minute increments
-        #print ('Playing %s' % self.protocol)
-        self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale, samplefreq=self.PS.out_sampleFreq,
-            isi=self.interstimulus_interval, reps=self.nreps)
-    
+        # print ('Playing %s' % self.CPars['protocol'])
+        # do diferently according to protocol:
+        
+        protocol = self.CPars['protocol']
+        if protocol in ['Noise Search', 'Tone Search']:
+            spl=80.
+            self.prepare_run(level=spl)  # same stimulus all the time, just compute
+            while not self.stop_hit:
+                self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
+                    samplefreq=self.PS.out_sampleFreq,
+                    isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
+        elif protocol in ['Tone RI', 'Noise RI']:
+            seq = Utility.seqparse(self.CPars['RI'])
+            splseq = seq[0][0]
+            for spl in splseq:
+                self.prepare_run(level = spl)  # same stimulus all the time, just amplitude changes
+                print('spl:', spl)
+                print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
+                self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
+                    samplefreq=self.PS.out_sampleFreq,
+                    isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
+                if self.stop_hit:
+                    break
+
+        elif protocol in ['FRA']:
+            splseq = Utility.seqparse(self.CPars['RI'])[0][0]
+            freqseq = Utility.seqparse(self.CPars['frequencies'])[0][0]
+            print('spls: ', self.CPars['RI'], splseq)
+            print('freq: ', self.CPars['frequencies'], freqseq)
+            for spl in splseq:
+                for freq in freqseq:
+                    self.prepare_run(freq=freq*1000., level=spl)  # same stimulus all the time, just amplitude changes
+                    print('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl))
+                    self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
+                        samplefreq=self.PS.out_sampleFreq,
+                        isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'],
+                        attns=self.convert_spl_attn(spl))
+                    if self.stop_hit:
+                        break
+
+        else:
+            spl = 80
+            self.prepare_run(level = spl)  # same stimulus all the time, just amplitude changes
+            self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
+                samplefreq=self.PS.out_sampleFreq,
+                isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
+            
+        
+        
     def stop_run(self):
         """
         End a run, and write data
@@ -242,13 +303,19 @@ class Controller(object):
         Nothing
         """
         self.timer.stop()
+        self.stop_hit = True
         # self.timedWrite.stop()
 #        self.storeData()
+    
+    
     def quit(self):
         self.PS.HwOff()
         exit(0)
+    
+    def convert_spl_attn(self, spl):
+        return [100.-spl, 100.-spl]  # just crude, need to clean up
 
-    def prepare_run(self):
+    def prepare_run(self, freq=None, level=None):
         """
         Clear out all arrays for the data collection run
         
@@ -261,47 +328,63 @@ class Controller(object):
         Nothing
         """
         Fs = self.PS.out_sampleFreq  # sample frequency
-        stim = self.protocol
-        level = None  # level is dbspl normally for models, but set to None for TDT (5V tone reference)
+        stim = self.CPars['protocol']
+#        level = None  # level is dbspl normally for models, but set to None for TDT (5V tone reference)
         seed = 32767
         #print('stim: ', stim)
+        wave = None
         if stim in ['Clicks']:
-           wave = sound.ClickTrain(rate=Fs, duration=self.duration, dbspl=level,
-                            click_duration=1e-4, click_starts=1e-3*np.linspace(10, 500, 10))
+           wave = sound.ClickTrain(rate=Fs, duration=self.CPars['duration'], dbspl=level,
+                            click_duration=self.CPars['click_duration'], 
+                            click_starts=1e-3*np.linspace(self.CPars['delay'], 
+                            self.CPars['click_interval']*self.CPars['click_N'], self.CPars['click_interval']))
 
-        elif stim in ['Tone RI']:
-           wave = sound.TonePip(rate=Fs, duration=self.duration+self.delay, f0=self.tone_frequency*1000., dbspl=level, 
-                            pip_duration=self.duration, pip_start=[self.delay], ramp_duration=self.RF/1000)
+        elif stim in ['Tone RI', 'Tone Search', 'FRA']:
+            if freq is None:
+                freq = self.CPars['tone_frequency']*1000.
+            wave = sound.TonePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
+                            f0=freq, dbspl=level, 
+                            pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                            ramp_duration=self.CPars['RF']/1000)
         elif stim in ['Tone SAM']:
-           wave = sound.SAMTone(rate=Fs, duration=self.duration+self.delay, f0=self.tone_frequency*1000., dbspl=level, 
-                            pip_duration=self.duration, pip_start=[self.delay], ramp_duration=self.RF/1000.,
-                            fmod=self.fMod, dmod=self.dMod, seed=seed)
+            if freq is None:
+                freq = self.CPars['tone_frequency']*1000.
+            wave = sound.SAMTone(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
+                            f0=freq, dbspl=level, 
+                            pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                            ramp_duration=self.CPars['RF']/1000.,
+                            fmod=self.CPars['fMod'], dmod=self.CPars['dMod'], seed=seed)
 
         elif stim in ['FM Sweep']:
-           wave = sound.FMSweep(rate=Fs, duration=0.5, dbspl=level,
+            wave = sound.FMSweep(rate=Fs, duration=0.5, dbspl=level,
                                start=0., ramp='linear', freqs=[16000, 200])
 
-        elif stim in ['Noise RI']:
-           wave = sound.NoisePip(rate=Fs, duration=self.duration+self.delay, f0=self.tone_frequency*1000., dbspl=level, 
-                            pip_duration=self.duration, pip_start=[self.delay], ramp_duration=self.RF/1000.,
-                            fmod=self.fMod, dmod=0., seed=seed)           
+        elif stim in ['Noise RI', 'Noise Search']:
+            wave = sound.NoisePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
+                            f0=self.CPars['tone_frequency']*1000., dbspl=level, 
+                            pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                            ramp_duration=self.CPars['RF']/1000.,
+                            fmod=self.CPars['fMod'], dmod=0., seed=seed)           
         elif stim in ['Noise SAM']:
-           wave = sound.SAMNoise(rate=Fs, duration=self.duration+self.delay, f0=self.tone_frequency*1000., dbspl=level, 
-                            pip_duration=self.duration, pip_start=[self.delay], ramp_duration=self.RF/1000.,
-                            fmod=self.fMod, dmod=self.dMod, seed=seed)
+            wave = sound.SAMNoise(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
+                            f0=self.CPars['tone_frequency']*1000., dbspl=level, 
+                            pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                            ramp_duration=self.CPars['RF']/1000.,
+                            fmod=self.CPars['fMod'], dmod=self.CPars['dMod'], seed=seed)
 
         elif stim in ['DMR']:
-           wave = sound.DynamicRipple(rate=Fs, duration=5.0)
+            wave = sound.DynamicRipple(rate=Fs, duration=5.0)
         
         elif stim in ['CMMR']:  # flanking type is "noise" (modulated), or "3Tone", or "None".
                                 # flankingPhase is comodulated or codeviant or random (if type is not None)
                                 # spacing is band spacing in octaves (for flanking bands)
                                 # 
-           wave = sound.ComodulationMasking(rate=Fs, duration=self.duration, f0=self.tone_frequency*1000., 
-               dbspl=level, fmod=self.fMod, dmod=self.dMod,
-               flanking_type=self.CMMR_flanking_type, flanking_spacing=self.CMMR_flanking_spacing,
-               flanking_phase=self.CMMR_flanking_phase, flanking_bands=self.CMMR_flanking_bands,
-               )
+            wave = sound.ComodulationMasking(rate=Fs, duration=self.CPars['duration'],
+                f0=self.CPars['tone_frequency']*1000., 
+                dbspl=level, fmod=self.CPars['fMod'], dmod=self.CPars['dMod'],
+                flanking_type=self.CMMR_flanking_type, flanking_spacing=self.CPars['CMMR_flanking_spacing'],
+                flanking_phase=self.CPars['CMMR_flanking_phase'], flanking_bands=self.CPars['CMMR_flanking_bands'],
+                )
 
         elif stim in ['SSN']: # speech shaped noise
             # read the file:
@@ -311,10 +394,10 @@ class Controller(object):
             wave = sound.SpeechShapedNoise(rate=Fs, duration=duration, waveform=sig[:,0], samplingrate=rate)
 
         elif stim in ['RSS']:
-           wave = sound.RandomSpectrumShape(rate=Fs, duration=0.5, dbspl=level,
-                ramp='linear', ramp_duration=1e-2, f0=self.RSS_cf*1000, pip_duration=0.4,
-                pip_start=[self.delay], amp_group_size=self.RSS_grouping, amp_sd=self.RSS_sd,
-                spacing=self.RSS_spacing, octaves=self.RSS_octaves)  
+            wave = sound.RandomSpectrumShape(rate=Fs, duration=0.5, dbspl=level,
+                ramp='linear', ramp_duration=1e-2, f0=self.CPars['RSS_cf']*1000, pip_duration=0.4,
+                pip_start=[self.CPars['delay']], amp_group_size=self.CPars['RSS_grouping'], amp_sd=self.CPars['RSS_SD'],
+                spacing=self.CPars['RSS_spacing'], octaves=self.CPars['RSS_octaves'])  
 
         self.wave = wave # rescale the waveform
 
@@ -373,8 +456,9 @@ class BuildGui(object):
         # Define parameters that control aquisition and buttons...
         params = [
             {'name': 'Stimulus', 'type': 'group', 'children': [
-                {'name': 'Protocol', 'type': 'list', 'values': ['Tone RI', 'Noise RI', 'FRA',
-                        'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep'
+                {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search',
+                        'Tone RI', 'Noise RI', 'FRA',
+                        'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep',
                         'NotchNoise', 'BandPass Noise'], 'value': 'Tone RI'},
                 {'name': 'Tone Frequency', 'type': 'float', 'value': 4.0, 'step': 1.0, 'limits': [0.5, 99.0],
                     'suffix': 'kHz', 'default': 4.0},
@@ -394,6 +478,15 @@ class BuildGui(object):
                 {'name': 'Delay', 'type': 'float', 'value': 0.01, 'step': 0.05, 'limits': [0.001, 10],
                     'suffix': 's', 'default': 0.2, 'tip': 'Sound delay, in seconds'},
              ]},
+             {'name': 'Clicks', 'type': 'group', 'children': [
+                  {'name': 'Interval', 'type': 'float', 'value': 50., 'step': 5.0, 'limits': [1., 1000.0],
+                    'suffix': 'ms', 'default': 50.0},
+                  {'name': 'Number', 'type': 'int', 'value': 4, 'step': 1, 'limits': [1, 200.0],
+                    'default': 4},
+                  {'name': 'Duration', 'type': 'float', 'value': 1e-4, 'step': 10e-6, 
+                      'limits': [10e-6, 1e-3], 'suffix': 's', 'default': 1e-4},
+             ]},
+
              {'name': 'Modulation/CMMR', 'type': 'group', 'children': [
                   {'name': 'Frequency', 'type': 'float', 'value': 40., 'step': 5.0, 'limits': [1., 1000.0],
                     'suffix': 'Hz', 'default': 40.0},
@@ -559,6 +652,11 @@ class BuildGui(object):
             self.lastPoint.setBrush(pg.mkBrush('b'))
             self.lastPoint.setSize(5)
             self.lastPoint = points.ptsClicked[0]
+        self.controller.protocol = 'Tone RI'
+        self.controller.tone_frequency = self.mousePoint.x()
+        self.controller.dbspl = self.mousePoint.y()
+        self.controller.prepare_run()
+        self.controller.run()
     
 if __name__ == '__main__':
     gui = BuildGui()
