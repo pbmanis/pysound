@@ -18,13 +18,17 @@ pp = pprint.PrettyPrinter(indent=4)
 
 
 class Controller(object):
-    def __init__(self, ptreedata, plots, img):
+    def __init__(self, ptreedata, plots, img, maingui):
         self.Vscale = 5.0  # CRITICAL: voltate for staqndard tone level
         self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
-         
+
+        # set up a timer to control timing of stimuli
+        self.TrialTimer=QtCore.QTimer() # get a Q timer
+        self.TrialTimer.timeout.connect(self.next_stimulus);
+        self.maingui = maingui
         
         self.CPars = OrderedDict()
         
@@ -38,8 +42,9 @@ class Controller(object):
         self.CPars['dMod'] = 50.  # modulation depth
         self.CPars['fMod'] = 40. # modulation frequency
         self.CPars['RF'] = 2.5  # rise-fall time, ms
-        self.CPars['nreps'] = 5  # repetitions in a single sweep
+        self.CPars['nreps'] = 1  # repetitions in a single sweep
         self.CPars['interstimulus_interval'] = 1.0  # time between stimuli, s
+        self.CPars['intertrial_interval'] = 1.0  # time between trials in RI and FRA, s
         self.CPars['protocol'] = 'Tone RI'
         self.CPars['randomize'] = False  # randomize order of presentation (or not...)
         
@@ -108,6 +113,8 @@ class Controller(object):
                     self.CPars['nreps'] = data
                 if path[1] == 'Interstimulus Interval':
                     self.CPars['interstimulus_interval'] = data
+                if path[1] == 'Intertrial Interval':
+                    self.CPars['intertrial_interval'] = data
                 if path[1] == 'Duration':
                     self.CPars['duration'] = data
                 if path[1] == 'Delay':
@@ -177,6 +184,8 @@ class Controller(object):
                 self.CPars['nreps'] = p['value']
             if p == 'Interstimulus Interval':
                 self.CPars['interstimulus_interval'] = p['value']
+            if p == 'Intertrial Interval':
+                self.CPars['intertrial_interval'] = p['value']
             if p == 'Duration':
                 self.CPars['duration'] = p['value']
             if p == 'Delay':
@@ -194,10 +203,10 @@ class Controller(object):
             if p == 'Modulation Frequency':
                 self.CPars['fMod'] = p['value']
 
-    def run(self):
+    def start_run(self):
         """
         Initialize variables for the start of a run
-        then use continueRun to get timers
+        then use next_stimulus to compute waveform and start timers
         
         Parameters
         ----------
@@ -215,13 +224,27 @@ class Controller(object):
         self.running = True
         self.stop_hit = False
         self.startTime = datetime.datetime.now()
-        self.prepare_run()  # reset the data arrays
-        self.continue_run()
+        self.prepare_run()  # reset the data arrays and calculate the next stimulus
+        self.lastfreq = None
+        self.trial_count = 0
+        self.TrialTimer.setSingleShot(True)
+        self.trial_active = True
+        self.maingui.label_status.setText('Running')
+        self.maingui.label_trialctr.setText('Trial: %04d' % 0)
+        
+        self.TrialTimer.start(0.1) # start (almost) right away
 
     def pause_run(self):
+        self.maingui.label_status.setText('Paused')
         self.pause_hit = True
-        
+        self.TrialTimer.stop()
+
     def continue_run(self):
+        self.maingui.label_status.setText('Running')
+        if self.trial_active:
+            self.TrialTimer.start(0.1) # start (almost) right away where we left off
+
+    def next_stimulus(self):
         """
         Start the timing and data collection, without reinitializing
         any variables
@@ -234,61 +257,58 @@ class Controller(object):
         Nothing
         
         """
-        self.timer = QtCore.QTimer()
-        # self.timer.timeout.connect(updater.update)
-        self.timedWrite = QtCore.QTimer()
-        # self.timedWrite.timeout.connect(updater.storeData)
-        # self.update() # do the first update, then start time
-        # self.timer.start(self.readInterval * 1000)
-        # self.timedWrite.start(30 * 1000.)  # update file in 1 minute increments
-        # print ('Playing %s' % self.CPars['protocol'])
-        # do diferently according to protocol:
+        self.TrialTimer.stop()
+        if self.trial_count >= self.total_trials:
+            self.stop_run()
+            return
+        self.maingui.label_trialctr.setText('Trial: {0:04d}'.format(self.trial_count+1))
+        
+        self.TrialTimer.start(int(1000.0*self.CPars['intertrial_interval']))  # reinit timer
+         # do diferently according to protocol:
         
         protocol = self.CPars['protocol']
+
         if protocol in ['Noise Search', 'Tone Search']:
             spl=80.
-            self.prepare_run(level=spl)  # same stimulus all the time, just compute
             while not self.stop_hit:
-                self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
+                self.PS.play_sound(self.wave, self.wave,
                     samplefreq=self.PS.out_sampleFreq,
                     isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
+
         elif protocol in ['Tone RI', 'Noise RI']:
-            seq = Utility.seqparse(self.CPars['RI'])
-            splseq = seq[0][0]
-            for spl in splseq:
-                self.prepare_run(level = spl)  # same stimulus all the time, just amplitude changes
-                print('spl:', spl)
-                print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
-                self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
-                    samplefreq=self.PS.out_sampleFreq,
-                    isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
-                if self.stop_hit:
-                    break
+            spl = self.stim_vary['Intensity'][self.trial_count]
+            print('spl:', spl)
+            print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
+            self.PS.play_sound(self.wave, self.wave,
+                samplefreq=self.PS.out_sampleFreq,
+                isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
 
         elif protocol in ['FRA']:
-            splseq = Utility.seqparse(self.CPars['RI'])[0][0]
-            freqseq = Utility.seqparse(self.CPars['frequencies'])[0][0]
-            print('spls: ', self.CPars['RI'], splseq)
-            print('freq: ', self.CPars['frequencies'], freqseq)
-            for spl in splseq:
-                for freq in freqseq:
-                    self.prepare_run(freq=freq*1000., level=spl)  # same stimulus all the time, just amplitude changes
-                    print('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl))
-                    self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
-                        samplefreq=self.PS.out_sampleFreq,
-                        isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'],
-                        attns=self.convert_spl_attn(spl))
-                    if self.stop_hit:
-                        break
+            spl = self.stim_vary['Intensity'][self.trial_count]
+            freq = self.stim_vary['Frequency'][self.trial_count]
+            if self.lastfreq is None or freq != self.lastfreq:  # determine if we need to calculate the waveform
+                self.lastfreq  = freq
+                wave = sound.TonePip(rate=self.PS.out_sampleFreq, duration=self.CPars['duration']+self.CPars['delay'],
+                            f0=freq*1000., dbspl=spl, 
+                            pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                            ramp_duration=self.CPars['RF']/1000)
+                self.wave = wave.sound*self.Vscale
+            print('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl))
+            self.PS.play_sound(self.wave, self.wave,
+                samplefreq=self.PS.out_sampleFreq,
+                isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'],
+                attns=self.convert_spl_attn(spl))
 
         else:
             spl = 80
-            self.prepare_run(level = spl)  # same stimulus all the time, just amplitude changes
-            self.PS.play_sound(self.wave.sound*self.Vscale, self.wave.sound*self.Vscale,
+            self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
-            
         
+        self.trial_count = self.trial_count + 1
+        if self.trial_count >= self.total_trials:
+            self.stop_run()  # end last trial without waiting for the rest
+        time.sleep(0.05)   # allow other events
         
     def stop_run(self):
         """
@@ -302,13 +322,14 @@ class Controller(object):
         -------
         Nothing
         """
-        self.timer.stop()
+        self.TrialTimer.stop()
+        self.maingui.label_status.setText('Stopped')
+        self.trial_active = False
         self.stop_hit = True
-        # self.timedWrite.stop()
 #        self.storeData()
-    
-    
+
     def quit(self):
+        self.TrialTimer.stop()
         self.PS.HwOff()
         exit(0)
     
@@ -333,19 +354,25 @@ class Controller(object):
         seed = 32767
         #print('stim: ', stim)
         wave = None
+        self.stim_vary = None
+        self.total_trials = 1000
         if stim in ['Clicks']:
            wave = sound.ClickTrain(rate=Fs, duration=self.CPars['duration'], dbspl=level,
                             click_duration=self.CPars['click_duration'], 
                             click_starts=1e-3*np.linspace(self.CPars['delay'], 
                             self.CPars['click_interval']*self.CPars['click_N'], self.CPars['click_interval']))
 
-        elif stim in ['Tone RI', 'Tone Search', 'FRA']:
+        elif stim in ['Tone RI', 'Tone Search']:
             if freq is None:
                 freq = self.CPars['tone_frequency']*1000.
+            if stim in ['Tone RI']:
+                self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['RI'])[0][0]}
+                self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.TonePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
                             f0=freq, dbspl=level, 
                             pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
                             ramp_duration=self.CPars['RF']/1000)
+
         elif stim in ['Tone SAM']:
             if freq is None:
                 freq = self.CPars['tone_frequency']*1000.
@@ -360,6 +387,9 @@ class Controller(object):
                                start=0., ramp='linear', freqs=[16000, 200])
 
         elif stim in ['Noise RI', 'Noise Search']:
+            if stim in ['Noise RI']:
+                self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['RI'])[0][0]}
+                self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
                             f0=self.CPars['tone_frequency']*1000., dbspl=level, 
                             pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
@@ -372,6 +402,15 @@ class Controller(object):
                             ramp_duration=self.CPars['RF']/1000.,
                             fmod=self.CPars['fMod'], dmod=self.CPars['dMod'], seed=seed)
 
+        elif stim in ['FRA']: # frequency response area
+            splseq = Utility.seqparse(self.CPars['RI'])[0][0]
+            freqseq = Utility.seqparse(self.CPars['frequencies'])[0][0]
+            mat_spl, mat_freq = np.meshgrid(splseq, freqseq)
+            self.stim_vary = {'Intensity': mat_spl.ravel(), 'Frequency': mat_freq.ravel()}
+            self.total_trials = len(mat_spl.ravel())
+            self.last_freq = None
+            # note that for this one, the tone is computed at time of use
+            
         elif stim in ['DMR']:
             wave = sound.DynamicRipple(rate=Fs, duration=5.0)
         
@@ -398,46 +437,47 @@ class Controller(object):
                 ramp='linear', ramp_duration=1e-2, f0=self.CPars['RSS_cf']*1000, pip_duration=0.4,
                 pip_start=[self.CPars['delay']], amp_group_size=self.CPars['RSS_grouping'], amp_sd=self.CPars['RSS_SD'],
                 spacing=self.CPars['RSS_spacing'], octaves=self.CPars['RSS_octaves'])  
+        
+        if stim in ['Noise Search', 'Tone Search']:
+            self.searchmode = True  # search mode just runs "forever", until a stop is hit
+        else:
+            self.searchmode = False
 
-        self.wave = wave # rescale the waveform
+        if wave is not None:
+            print ('wave: ', wave)
+            print ('vscale: ', self.Vscale)
+            self.wavesound = wave
+            self.wave, =self.wavesound.sound*self.Vscale, # force computation and rescale the waveform
 
     def show_wave(self):
         self.prepare_run()  # force computation/setup of stimulus
         self.plots['Wave'].clear()
-        self.plots['Wave'].plot(self.wave.time, self.wave.sound*self.Vscale)
+        self.plots['Wave'].plot(self.wavesound.time, self.wavesound.sound*self.Vscale)
     
-    # redundant: pyqtgraph provides spectrum plot
-    # def show_spectrum(self):
-    #     self.prepare_run()
-    #     Fs = self.PS.out_sampleFreq
-    #     f, Pxx_spec = scipy.signal.periodogram(self.wave.sound, Fs) #, window='flattop', nperseg=8192,
-    #                        # noverlap=512, scaling='spectrum')
-    #     self.plots['Wave'].plot(f[1:], np.sqrt(Pxx_spec)[1:])
-    #     self.plots['Wave'].setLogMode(x=True, y=True)
-
     def show_spectrogram(self):
         self.prepare_run()
         Fs = self.PS.out_sampleFreq
-        specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wave.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
-        thr = 0. # 1e-8
-        Sxx[Sxx <= thr] = thr
-        # pos = np.array([0., 1., 0.5, 0.25, 0.75])
-        # color = np.array([[0,255,255,255], [255,255,0,255], [0,0,0,255], (0, 0, 255, 255), (255, 0, 0, 255)], dtype=np.ubyte)
-        # cmap = pg.ColorMap(pos, color)
-        # lut = cmap.getLookupTable(0.0, 1.0, 256)
-        # # set colormap
-        # # print (dir(self.img))
-        # # print (dir(self.img.imageItem))
-        # self.img.imageItem.setLookupTable(lut)
-#        self.img.setLevels([-40,50]) 
-        self.img.setImage(Sxx.T)
-        
-        # also show the long term spectrum.
-        f, Pxx_spec = scipy.signal.periodogram(self.wave.sound*self.Vscale, Fs) #, window='flattop', nperseg=8192,
+        # show the long term spectrum.
+        f, Pxx_spec = scipy.signal.periodogram(self.wavesound.sound*self.Vscale, Fs) #, window='flattop', nperseg=8192,
                        # noverlap=512, scaling='spectrum')
         self.plots['LongTermSpec'].clear()
         self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
         #self.plots['LongTermSpec'].setLogMode(x=True, y=False)
+
+        if self.spectimage:  # enable spectrogram plot
+            specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wavesound.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
+            thr = 0. # 1e-8
+            Sxx[Sxx <= thr] = thr
+            # pos = np.array([0., 1., 0.5, 0.25, 0.75])
+            # color = np.array([[0,255,255,255], [255,255,0,255], [0,0,0,255], (0, 0, 255, 255), (255, 0, 0, 255)], dtype=np.ubyte)
+            # cmap = pg.ColorMap(pos, color)
+            # lut = cmap.getLookupTable(0.0, 1.0, 256)
+            # # set colormap
+            # # print (dir(self.img))
+            # # print (dir(self.img.imageItem))
+            # self.img.imageItem.setLookupTable(lut)
+            # self.img.setLevels([-40,50])
+            self.img.setImage(Sxx.T)
         
 
         
@@ -469,7 +509,9 @@ class BuildGui(object):
                 {'name': 'Frequencies', 'type': 'str', 'value': '4;48/8l',
                     'suffix': 'kHz', 'default': '4;48/8l'},
                                             
-                {'name': 'Repetitions', 'type': 'int', 'value': 5, 'limits': [1, 10000], 'default': 5, 'tip': 'Stimuli per sweep'},
+                {'name': 'Repetitions', 'type': 'int', 'value': 1, 'limits': [1, 10000], 'default': 1, 'tip': 'Stimuli per sweep'},
+                {'name': 'Intertrial Interval', 'type': 'float', 'value': 1., 'limits': [0.5, 300.], 
+                    'suffix': 's', 'default': 1.0, 'tip': 'Time between sweeps (trials) in FRA and RI protocols'},
                 {'name': 'Interstimulus Interval', 'type': 'float', 'value': 1., 'limits': [0.2, 300.], 
                     'suffix': 's', 'default': 1.0, 'tip': 'Time between stimuli in a sweep'},
                 {'name': 'Randomize', 'type': 'bool', 'value': False, 'default': False, 'tip': 'Randomize presentation order in all dimensions'},
@@ -530,25 +572,34 @@ class BuildGui(object):
         
         # now build the ui
         # hardwired buttons
-        self.btn_waveform = QtGui.QPushButton("Show Waveform")
-        self.btn_spectrum = QtGui.QPushButton("Show Spectrum")
+        self.btn_waveform = QtGui.QPushButton("Wave")
+        self.btn_spectrum = QtGui.QPushButton("Spectrum")
         self.btn_run = QtGui.QPushButton("Run")
         self.btn_pause = QtGui.QPushButton("Pause")
         self.btn_continue = QtGui.QPushButton("Continue")
         self.btn_stop = QtGui.QPushButton("Stop")
         self.btn_quit = QtGui.QPushButton("Quit")
-        
+        self.label_status = QtGui.QLabel('Stopped')
+        self.label_trialctr = QtGui.QLabel('Trial: 0')
+        self.label_status.sizeHint = QtCore.QSize(100, 20)
+        self.label_trialctr.setAutoFillBackground(True)
+        self.label_trialctr.sizeHint = QtCore.QSize(100, 20)
         hbox = QtGui.QGridLayout()
         hbox.setColumnStretch(0, 1)
         hbox.setColumnStretch(1, 1)
+        hbox.setColumnStretch(2, 1)
         
-        hbox.addWidget(self.btn_waveform, 0, 0, 1, 1)
-        hbox.addWidget(self.btn_spectrum, 0, 1, 1, 1)
-        hbox.addWidget(self.btn_run, 1, 0, 1, 1)
-        hbox.addWidget(self.btn_pause, 1, 1, 1, 1)
-        hbox.addWidget(self.btn_continue, 1, 2, 1, 1)
-        hbox.addWidget(self.btn_stop, 0, 2, 1, 1)
-        hbox.addWidget(self.btn_quit, 0, 3, 1, 1)
+        hbox.addWidget(self.btn_quit, 0, 0, 1, 1)
+        hbox.addWidget(self.label_status, 0, 1)
+        hbox.addWidget(self.btn_run, 0, 2, 1, 1)
+        hbox.addWidget(self.btn_pause, 0, 3, 1, 1)
+
+        hbox.addWidget(self.label_trialctr, 1, 0)
+        hbox.addWidget(self.btn_stop, 1, 2, 1, 1)
+        hbox.addWidget(self.btn_continue, 1, 3, 1, 1)
+
+        hbox.addWidget(self.btn_waveform, 2, 0, 1, 1)
+        hbox.addWidget(self.btn_spectrum, 2, 1, 1, 1)
         
         self.layout.addLayout(hbox, 0, 0, 1, 2)
         
@@ -575,12 +626,16 @@ class BuildGui(object):
         self.plots['LongTermSpec'].getAxis('bottom').setLabel('F (Hz)', color="#ff0000")
 
 
-        self.img = pg.ImageView() # view=self.plots['Spec'])
-        arr = np.random.random((100, 32))
-        self.img.setImage(arr)
-        self.img.ui.roiBtn.hide()
-#        self.img.ui.menuBtn.hide()
-        self.img.show()
+        self.spectimage = False
+        if self.spectimage:
+            self.img = pg.ImageView() # view=self.plots['Spec'])
+            arr = np.random.random((100, 32))
+            self.img.setImage(arr)
+            self.img.ui.roiBtn.hide()
+    #        self.img.ui.menuBtn.hide()
+            self.img.show()
+        else:
+            self.img = None
 
         glayout.nextRow()
         l2 = glayout.addLayout(colspan=3, border=(50,0,0))  # embed a new layout
@@ -623,7 +678,7 @@ class BuildGui(object):
         # Initialize the controller, set parameters, and connect actions and
         # responses to parameter changes
         #
-        self.controller = Controller(self.ptreedata, self.plots, self.img)
+        self.controller = Controller(self.ptreedata, self.plots, self.img, self)  # we pass the gui also
 
         self.controller.setAllParameters(params)  # synchronize parameters with the tree
         self.ptreedata.sigTreeStateChanged.connect(self.controller.change)  # connect parameters to their updates
@@ -631,11 +686,12 @@ class BuildGui(object):
         # now connect the buttons
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
-        self.btn_run.clicked.connect(self.controller.run)
+        self.btn_run.clicked.connect(self.controller.start_run)
         self.btn_pause.clicked.connect(self.controller.pause_run)
-        self.btn_continue.clicked.connect(self.controller.continue_run)
+        self.btn_continue.clicked.connect(self.controller.next_stimulus)
         self.btn_stop.clicked.connect(self.controller.stop_run)
         self.btn_quit.clicked.connect(self.controller.quit)
+
 
     def getClickedLocation(self, points):
         # print (dir(points))
@@ -656,7 +712,7 @@ class BuildGui(object):
         self.controller.tone_frequency = self.mousePoint.x()
         self.controller.dbspl = self.mousePoint.y()
         self.controller.prepare_run()
-        self.controller.run()
+        self.controller.start_run()
     
 if __name__ == '__main__':
     gui = BuildGui()
