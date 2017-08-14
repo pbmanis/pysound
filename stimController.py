@@ -262,7 +262,7 @@ class Controller(object):
         Nothing
         """
 
-        self.showParameters()
+       # self.showParameters()
         
         # check for valid times: 
         nr = self.CPars['nreps']  # repetitions in a single sweep
@@ -355,7 +355,6 @@ class Controller(object):
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
             
         elif protocol in ['One Tone']:
-            print ('One Tone - presentation')
             spl = self.attn
             self.StimRecord['savedata'] = False
             self.PS.play_sound(self.wave, self.wave,
@@ -452,7 +451,7 @@ class Controller(object):
                         'NotchNoise', 'BandPass Noise', 'One Tone']
         if protocol not in  knownprotocols:
             raise ValueError('Protocol not in list we can map for scaling the voltage in map_voltage')
-        if protocol.find('Tone') >=0 or protocol in ['FRA', 'RSS']:
+        if protocol.find('Tone') >=0 or protocol in ['FRA', 'RSS', 'One Tone']:
             print ('Tone')
             A = self.CPars['Voltage_Scales']['Tone_V']
         if protocol.find('Clicks') >= 0:
@@ -500,7 +499,6 @@ class Controller(object):
                             self.CPars['duration'], self.CPars['click_N']))
 
         elif stim in ['Tone RI', 'Tone Search']:
-            print ('stim: ', stim)
             if freq is None:
                 freq = self.CPars['tone_frequency']*1000.
             if stim in ['Tone RI']:
@@ -512,10 +510,9 @@ class Controller(object):
                             ramp_duration=self.CPars['RF']/1000)
 
         elif stim in ['One Tone']:
-            print ('One Tone')
             self.total_trials = 1
             wave = sound.TonePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
-                            f0=self.tone_frequency*1000, dbspl=self.attn, 
+                            f0=self.tone_frequency*1000, dbspl=level, 
                             pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
                             ramp_duration=self.CPars['RF']/1000)
 
@@ -821,24 +818,44 @@ class BuildGui():
         self.plots['Plot1'] = l2.addPlot(Title="Plot1")
 #        self.l2.addWidget(self.plots['Plot1'])
         self.plots['Plot1'].getAxis('bottom').setLabel('F (kHz)')
-        self.plots['Plot1'].getAxis('left').setLabel('dB SPL')
+        self.plots['Plot1'].getAxis('left').setLabel('dB ATTN')
         self.plots['Plot1'].setTitle('FRA')
-        self.plots['Plot1'].setXRange(2, 72, padding=0)
+        self.plots['Plot1'].setXRange(0, 50, padding=0)
         #self.plots['Plot1'].setLogMode(x=True)
-        self.plots['Plot1'].setYRange(-10, 110, padding=0)
-        xd = np.arange(4, 64, 1)
-        yd = np.arange(0, 100, 2.5)
+        self.plots['Plot1'].setYRange(125, -5, padding=0)
+        xd = np.arange(2, 48, 1)
+       # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
+       # print ('xd: ', xd)
+        yd = np.arange(120, 5, -5)
         spots = []
         self.lastPoint = None
         for i in range(xd.shape[0]):
             for j in range(yd.shape[0]):
-                spots.append({'pos': (xd[i], yd[j]), 'size': 5, 'pen': {'color': 'w', 'width': 1, 'alpha': 0.5},
+                spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
                     'brush': pg.mkBrush('b')})
-        self.spi = pg.ScatterPlotItem(size=5, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
+        self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
         self.spi.addPoints(spots)
         self.plots['Plot1'].addItem(self.spi)
+        self.spi.getViewBox().invertY(True)
         self.spi.sigClicked.connect(self.getClickedLocation)
-        
+        #cross hair
+        # vLine = pg.InfiniteLine(angle=90, movable=True)
+        # hLine = pg.InfiniteLine(angle=0, movable=True)
+        # self.plots['Plot1'].addItem(vLine, ignoreBounds=False)
+        # self.plots['Plot1'].addItem(hLine, ignoreBounds=False)
+        # vb = self.plots['Plot1'].vb
+
+        # def mouseMoved(evt):
+        #     pos = evt[0]  ## using signal proxy turns original arguments into a tuple
+        #     if self.plots['Plot1'].sceneBoundingRect().contains(pos):
+        #         mousePoint = vb.mapSceneToView(pos)
+        #         index = int(mousePoint.x())
+        #         if index > 0 and index < len(data1):
+        #             label.setText("<span style='font-size: 12pt'>x=%0.1f,   <span style='color: red'>y1=%0.1f</span>,   <span style='color: green'>y2=%0.1f</span>" % (mousePoint.x(), data1[index], data2[index]))
+        #         vLine.setPos(mousePoint.x())
+        #         hLine.setPos(mousePoint.y())
+        # proxy = pg.SignalProxy(self.plots['Plot1'].scene().sigMouseMoved, rateLimit=60, slot=mouseMoved)   
+
         # self.plots['Plot2'] = pg.plot(Title="Plot2")
        #  self.l2.addWidget(self.plots['Plot2'])
        #  self.plots['Plot2'].getAxis('bottom').setLabel('t (s)')
@@ -908,12 +925,12 @@ class BuildGui():
         self.mousePoint = points.ptsClicked[0].viewPos()
         print('mousepoint: ', self.mousePoint.x(), self.mousePoint.y()) 
         points.ptsClicked[0].setBrush(pg.mkBrush('r'))
-        points.ptsClicked[0].setSize(5)
+        points.ptsClicked[0].setSize(7)
         if self.lastPoint is None:
             self.lastPoint = points.ptsClicked[0]
         else:
             self.lastPoint.setBrush(pg.mkBrush('b'))
-            self.lastPoint.setSize(5)
+            self.lastPoint.setSize(7)
             self.lastPoint = points.ptsClicked[0]
         
         stimpars = self.ptreedata.param('Stimulus').items.keys()[0]  # force to One Tone mode
@@ -922,8 +939,8 @@ class BuildGui():
 
         self.controller.protocol = stimpars.param.names['Protocol'].value()
         self.controller.tone_frequency = self.mousePoint.x()
-        self.controller.dbspl = self.mousePoint.y()
-        self.controller.prepare_run()
+        self.controller.attn = self.mousePoint.y()
+       # self.controller.prepare_run()
         self.controller.start_run()
     
 if __name__ == '__main__':
