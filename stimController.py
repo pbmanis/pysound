@@ -4,6 +4,8 @@ import sys
 import datetime
 import numpy as np
 import scipy.signal
+import time
+import pickle
 import scipy.io.wavfile as wav
 from collections import OrderedDict
 import pyqtgraph as pg
@@ -13,6 +15,7 @@ import pystim
 import Utility
 import sound
 import pprint
+import TDTTankInterface as TDT
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -24,7 +27,7 @@ class Controller(object):
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
-
+        self.TDT = TDT.TDTTankInterface()  # make instance of tank interface
         # set up a timer to control timing of stimuli
         self.TrialTimer=QtCore.QTimer() # get a Q timer
         self.TrialTimer.timeout.connect(self.next_stimulus);
@@ -34,7 +37,8 @@ class Controller(object):
         
 #        self.setAllParameters(ptreedata)
         
-        self.CPars['tone_frequency'] = 4.0  # tone pip frequency, Hz
+        self.CPars['tone_frequency'] = 4.0  # default tone pip frequency, Hz
+        self.CPars['dbspl'] = 75.  # default level
         self.CPars['duration'] = 0.2  # stimulus duration, ms
         self.CPars['delay'] = 0.01  # delay to start of stimulus, s
         self.CPars['RI'] = '20;100/10'  # seqparse for Rate-Intensity intensity series
@@ -62,6 +66,9 @@ class Controller(object):
         self.CPars['CMMR_flanking_phase'] = 'comodulated'  # flanking bands comodulated 
         self.CPars['CMMR_flanking_spacing'] = 0.5  # octaves
         
+        #Special for clickable map
+        self.dbspl = 75
+        self.tone_frequency = 4.0 # khz 
                 
     # def setAllParameters(self, params):
     #     """
@@ -219,11 +226,26 @@ class Controller(object):
 
         self.showParameters()
         
+        # check for valid times: 
+        nr = self.CPars['nreps']  # repetitions in a single sweep
+        isi = self.CPars['interstimulus_interval']  # time between stimuli, s
+        iti = self.CPars['intertrial_interval']  # time between trials in RI and FRA, s
+        self.StimRecord = {}
+        
+        sweepdur = nr*isi
+        if sweepdur > 0.8*iti:
+            print('nreps*isi must be < 80\% of iti, please adjust')
+            return
+        
         self.runtime = 0
         self.NSamples = 0
         self.running = True
         self.stop_hit = False
         self.startTime = datetime.datetime.now()
+        self.StimRecord['StartTime'] = self.startTime  # capture time
+        self.StimRecord['Params'] = self.CPars  # all selected parameters
+        self.StimRecord['Trials'] = []  # store trial info in a list
+        self.StimRecord['savedata'] = True  # flag to save data - set to false by search modes
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.lastfreq = None
         self.trial_count = 0
@@ -261,24 +283,36 @@ class Controller(object):
         if self.trial_count >= self.total_trials:
             self.stop_run()
             return
-        self.maingui.label_trialctr.setText('Trial: {0:04d}'.format(self.trial_count+1))
+        self.maingui.label_trialctr.setText('Trial: {0:04d} of {1:04d}'.format(self.trial_count+1, self.total_trials))
         
         self.TrialTimer.start(int(1000.0*self.CPars['intertrial_interval']))  # reinit timer
          # do diferently according to protocol:
-        
+        spl = self.CPars['dbspl']
+        freq = self.CPars['tone_frequency']
         protocol = self.CPars['protocol']
-
+        self.StimRecord['Trials'].append({'Time': '{:%Y.%m.%d %H:%M:%S}'.format(datetime.datetime.now())})  # start time for each trial
+        self.StimRecord['Trials'][-1]['Block'] = self.TDT.find_last_block()
         if protocol in ['Noise Search', 'Tone Search']:
-            spl=80.
-            while not self.stop_hit:
-                self.PS.play_sound(self.wave, self.wave,
-                    samplefreq=self.PS.out_sampleFreq,
-                    isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
-
+            self.StimRecord['savedata'] = False
+            self.PS.play_sound(self.wave, self.wave,
+                samplefreq=self.PS.out_sampleFreq,
+                isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], 
+                attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
+            
+        elif protocol in ['One Tone']:
+            print ('One Tone - presentation')
+            spl = self.dbspl
+            self.StimRecord['savedata'] = False
+            self.PS.play_sound(self.wave, self.wave,
+                samplefreq=self.PS.out_sampleFreq,
+                isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'],
+                    attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
+            
         elif protocol in ['Tone RI', 'Noise RI']:
             spl = self.stim_vary['Intensity'][self.trial_count]
-            print('spl:', spl)
-            print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
+            freq = self.CPars['tone_frequency']
+            # print('spl:', spl)
+            # print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
@@ -300,11 +334,14 @@ class Controller(object):
                 attns=self.convert_spl_attn(spl))
 
         else:
-            spl = 80
+            spl = self.CPars['dbspl']
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
         
+        self.StimRecord['Trials'][-1]['protocol'] = protocol
+        self.StimRecord['Trials'][-1]['spl'] = spl
+        self.StimRecord['Trials'][-1]['freq'] = freq
         self.trial_count = self.trial_count + 1
         if self.trial_count >= self.total_trials:
             self.stop_run()  # end last trial without waiting for the rest
@@ -326,8 +363,20 @@ class Controller(object):
         self.maingui.label_status.setText('Stopped')
         self.trial_active = False
         self.stop_hit = True
-#        self.storeData()
-
+        pp.pprint(self.StimRecord)
+        self.storeData()
+        
+    def storeData(self):
+        """
+        Write the stimulus parameters to a disk file (ultimately in the current tank)
+        """
+        alldat = [self.CPars, self.StimRecord]
+        fh = open('test.p', 'w')
+        pickle.dump(alldat, fh)
+        fh.close()
+        
+        
+        
     def quit(self):
         self.TrialTimer.stop()
         self.PS.HwOff()
@@ -363,6 +412,7 @@ class Controller(object):
                             self.CPars['click_interval']*self.CPars['click_N'], self.CPars['click_interval']))
 
         elif stim in ['Tone RI', 'Tone Search']:
+            print ('stim: ', stim)
             if freq is None:
                 freq = self.CPars['tone_frequency']*1000.
             if stim in ['Tone RI']:
@@ -370,6 +420,14 @@ class Controller(object):
                 self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.TonePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
                             f0=freq, dbspl=level, 
+                            pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                            ramp_duration=self.CPars['RF']/1000)
+
+        elif stim in ['One Tone']:
+            print ('One Tone')
+            self.total_trials = 1
+            wave = sound.TonePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
+                            f0=self.tone_frequency*1000, dbspl=self.dbspl, 
                             pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
                             ramp_duration=self.CPars['RF']/1000)
 
@@ -478,9 +536,8 @@ class Controller(object):
             # self.img.imageItem.setLookupTable(lut)
             # self.img.setLevels([-40,50])
             self.img.setImage(Sxx.T)
-        
 
-        
+
 # Build GUI and window
 
 class BuildGui(object):
@@ -594,7 +651,7 @@ class BuildGui(object):
         hbox.addWidget(self.btn_run, 0, 2, 1, 1)
         hbox.addWidget(self.btn_pause, 0, 3, 1, 1)
 
-        hbox.addWidget(self.label_trialctr, 1, 0)
+        hbox.addWidget(self.label_trialctr, 1, 0, 1, 2)
         hbox.addWidget(self.btn_stop, 1, 2, 1, 1)
         hbox.addWidget(self.btn_continue, 1, 3, 1, 1)
 
@@ -686,7 +743,14 @@ class BuildGui(object):
         # now connect the buttons
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
+
+     #    self.ButtonEvents = QtCore.QTimer() # get a Q timer
+     #    self.btn_stop.clicked.connect(timer, SIGNAL(timeout()), this, SLOT(processOneThing()));
+     # timer->start();
+     
         self.btn_run.clicked.connect(self.controller.start_run)
+
+
         self.btn_pause.clicked.connect(self.controller.pause_run)
         self.btn_continue.clicked.connect(self.controller.next_stimulus)
         self.btn_stop.clicked.connect(self.controller.stop_run)
@@ -708,7 +772,12 @@ class BuildGui(object):
             self.lastPoint.setBrush(pg.mkBrush('b'))
             self.lastPoint.setSize(5)
             self.lastPoint = points.ptsClicked[0]
-        self.controller.protocol = 'Tone RI'
+        
+        stimpars = self.ptreedata.param('Stimulus').items.keys()[0]  # force to One Tone mode
+        stimpars.param.names['Protocol'].setValue('One Tone')
+#        stimpars.param.emitStateChanged()  # trigger
+
+        self.controller.protocol = stimpars.param.names['Protocol'].value()
         self.controller.tone_frequency = self.mousePoint.x()
         self.controller.dbspl = self.mousePoint.y()
         self.controller.prepare_run()

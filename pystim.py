@@ -231,7 +231,7 @@ class PyStim:
                 return
             print('         Tag = {0:s}'.format(tag))
 
-    def present_stim(self, waveforms, stimulus_period=1.0, reps=1):
+    def present_stim(self, waveforms, stimulus_period=1.0, reps=1, runmode=RZ5D_Run):
         sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
         print('sf: ', sf, 'stimulus period: ', stimulus_period)
         self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
@@ -239,7 +239,7 @@ class PyStim:
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
         self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
         time.sleep(0.01) # just wait a few msec
-        self.RZ5D.SetSysMode(RZ5D_Run)
+        self.RZ5D.SetSysMode(runmode)
 
     def RZ5D_close(self):
         self.RZ5D.SetSysMode(RZ5D_Idle) # Idle
@@ -279,7 +279,8 @@ class PyStim:
                 self.PA5.ConnectPA5("USB", 2)
                 self.PA5.SetAtten(atten_right)
 
-    def play_sound(self, wavel, waver=None, samplefreq=44100, postduration = 0.35, attns=[20., 20.], isi=1.0, reps=1):
+    def play_sound(self, wavel, waver=None, samplefreq=44100, postduration = 0.35, attns=[20., 20.],
+            isi=1.0, reps=1, storedata=True):
         """
         play_sound sends the sound out to an audio device.
         In the absence of NI card, and TDT system, we use the system audio device (sound card, etc)
@@ -300,7 +301,10 @@ class PyStim:
             Attenuator settings to use for this stimulus
         
         """  
-        
+        if storedata:
+            runmode = RZ5D_Run
+        else:
+            runmode = RZ5D_Preview
         # create an output waveform that has the stimulus repeated reps times with the selected ISI
         samplefreq = self.out_sampleFreq
         stimulus_duration = isi*reps # len(wavel)*samplefreq + postduration
@@ -355,7 +359,7 @@ class PyStim:
         
         if 'RZ5D' in self.hardware:
             swcount = -1
-            self.present_stim(wavel, isi, reps)  # this sets up the NI card as well.
+            self.present_stim(wavel, isi, reps, runmode)  # this sets up the NI card as well.
             deadmantimer = isi*(reps+1)+0.5  # just in case it doesn't stop as it should
             start_time = time.time()  # deadman start time
 #            print('done? ', self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']))
