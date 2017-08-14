@@ -233,7 +233,7 @@ class PyStim:
 
     def present_stim(self, waveforms, stimulus_period=1.0, reps=1, runmode=RZ5D_Run):
         sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
-        print('sf: ', sf, 'stimulus period: ', stimulus_period)
+        #print('sf: ', sf, 'stimulus period: ', stimulus_period)
         self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)

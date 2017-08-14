@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import sys
+import os
 import datetime
 import numpy as np
 import scipy.signal
@@ -27,7 +28,6 @@ class Controller(object):
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
-        self.TDT = TDT.TDTTankInterface()  # make instance of tank interface
         # set up a timer to control timing of stimuli
         self.TrialTimer=QtCore.QTimer() # get a Q timer
         self.TrialTimer.timeout.connect(self.next_stimulus);
@@ -265,6 +265,10 @@ class Controller(object):
         self.StimRecord['Params'] = self.CPars  # all selected parameters
         self.StimRecord['Trials'] = []  # store trial info in a list
         self.StimRecord['savedata'] = True  # flag to save data - set to false by search modes
+        self.maingui.TT.open_tank()
+        lastblock = self.maingui.TT.find_last_block()
+        self.maingui.TT.close_tank()
+        self.StimRecord['FirstBlock'] = lastblock
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.lastfreq = None
         self.trial_count = 0
@@ -310,7 +314,10 @@ class Controller(object):
         freq = self.CPars['tone_frequency']
         protocol = self.CPars['protocol']
         self.StimRecord['Trials'].append({'Time': '{:%Y.%m.%d %H:%M:%S}'.format(datetime.datetime.now())})  # start time for each trial
-        self.StimRecord['Trials'][-1]['Block'] = self.TDT.find_last_block()
+        self.maingui.TT.open_tank()
+        lastblock = self.maingui.TT.find_last_block()
+        self.maingui.TT.close_tank()
+        self.StimRecord['Trials'][-1]['Block'] = lastblock
         if protocol in ['Noise Search', 'Tone Search']:
             self.StimRecord['savedata'] = False
             self.PS.play_sound(self.wave, self.wave,
@@ -382,7 +389,8 @@ class Controller(object):
         self.maingui.label_status.setText('Stopped')
         self.trial_active = False
         self.stop_hit = True
-        pp.pprint(self.StimRecord)
+ #       pp.pprint(self.StimRecord)
+ #       time.sleep(5.0)  # wait for TDT to finish writing
         self.storeData()
         
     def storeData(self):
@@ -390,7 +398,8 @@ class Controller(object):
         Write the stimulus parameters to a disk file (ultimately in the current tank)
         """
         alldat = [self.CPars, self.StimRecord]
-        fh = open('test.p', 'w')
+        fh = open(os.path.join(self.maingui.TT.tank_directory, 'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['protocol'], 
+            self.StimRecord['FirstBlock'], self.StimRecord['Trials'][-1]['Block'])), 'w')
         pickle.dump(alldat, fh)
         fh.close()
         
@@ -522,8 +531,8 @@ class Controller(object):
             self.searchmode = False
 
         if wave is not None:
-            print ('wave: ', wave)
-            print ('vscale: ', self.Vscale)
+            # print ('wave: ', wave)
+            # print ('vscale: ', self.Vscale)
             self.wavesound = wave
             self.wave, =self.wavesound.sound*self.Vscale, # force computation and rescale the waveform
 
@@ -561,7 +570,7 @@ class Controller(object):
 
 # Build GUI and window
 
-class BuildGui(object):
+class BuildGui():
     def __init__(self):
         self.app = pg.mkQApp()
         self.win = QtGui.QWidget()
@@ -667,6 +676,7 @@ class BuildGui(object):
         self.btn_continue = QtGui.QPushButton("Continue")
         self.btn_stop = QtGui.QPushButton("Stop")
         self.btn_quit = QtGui.QPushButton("Quit")
+        self.btn_tdt = QtGui.QPushButton("TDT Tank")
         self.label_status = QtGui.QLabel('Stopped')
         self.label_trialctr = QtGui.QLabel('Trial: 0')
         self.label_status.sizeHint = QtCore.QSize(100, 20)
@@ -688,6 +698,7 @@ class BuildGui(object):
 
         hbox.addWidget(self.btn_waveform, 2, 0, 1, 1)
         hbox.addWidget(self.btn_spectrum, 2, 1, 1, 1)
+        hbox.addWidget(self.btn_tdt, 2, 2, 1, 1)
         
         self.layout.addLayout(hbox, 0, 0, 1, 2)
         
@@ -772,9 +783,13 @@ class BuildGui(object):
         self.ptreedata.sigTreeStateChanged.connect(self.controller.change)  # connect parameters to their updates
         
         # now connect the buttons
+        self.recentpath = ''
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
-
+        print(dir(TDT))
+        self.TT = TDT.TDTTankInterface()
+        print('self.TT.available: ', self.TT.available)
+        self.btn_tdt.clicked.connect(self.getTDTTank) # self.TT.set_tank_path)
      #    self.ButtonEvents = QtCore.QTimer() # get a Q timer
      #    self.btn_stop.clicked.connect(timer, SIGNAL(timeout()), this, SLOT(processOneThing()));
      # timer->start();
@@ -786,6 +801,20 @@ class BuildGui(object):
         self.btn_continue.clicked.connect(self.controller.next_stimulus)
         self.btn_stop.clicked.connect(self.controller.stop_run)
         self.btn_quit.clicked.connect(self.controller.quit)
+
+    def getTDTTank(self, dirname=None):
+        print( 'setting dialog')
+        filedialog = QtGui.QFileDialog()
+        filedialog.setFileMode(QtGui.QFileDialog.Directory)
+        self.TT.tank_directory = str(filedialog.getExistingDirectory(None, "Select Tank Directory", self.recentpath,
+                                    QtGui.QFileDialog.ShowDirsOnly))
+        self.recentpath = self.TT.tank_directory
+        print('Tank dir selected: ', self.TT.tank_directory)
+        self.TT.open_tank()
+        lastblock = self.TT.find_last_block()
+        self.TT.close_tank()
+        print('last block: ', lastblock)
+        self.TT.show_tank_path()
 
 
     def getClickedLocation(self, points):

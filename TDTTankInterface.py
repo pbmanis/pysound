@@ -9,35 +9,34 @@ import time
 from collections import OrderedDict
 import pprint
 
+if os.name == 'nt':
+    import win32com.client
 
-class TDTTankInterface(object):
+class TDTTankInterface():
     def __init__(self):
         if os.name == 'nt':
-            import win32com.client
             self.available = True
         else:
             self.available = False
-        self.tank_directory = None
+        self.tank_directory = ''
+        print('setup tank interface')
     
-    def set_tank_path(self, filename):
-        filedialog = QtGui.QFileDialog(self, )
-        filedialog.setFileMode(QtGui.QFileDialog.Directory)
-        self.tank_directory = str(filedialog.getOpenFileName(self, "Select or create Tank Directory", "",
-                                                 ""))
+    def show_tank_path(self):
+        print('Tank path: ', self.tank_directory)
 
     def open_tank(self):
         self.TDT_Tank = win32com.client.Dispatch('TTank.X')
         self.TDT_Tank.ConnectServer('Local','Me')
-        self.TDT_Tank.OpenTank(self.tank_filename,'R')  # set with path to the tank
+        self.TDT_Tank.OpenTank(self.tank_directory,'R')  # set with path to the tank
+
         
-    
     def find_last_block(self):
         if not self.available:
             return 0
         blocknum = 0
-        while TDT_Tank.QueryBlockName(blocknum) != '':
+        while self.TDT_Tank.QueryBlockName(blocknum) != '':
             blocknum = blocknum + 1
-        blocknum = blocknum-1
+        #blocknum = blocknum-1
         return blocknum
     
     def close_tank(self):
