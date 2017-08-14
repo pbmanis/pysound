@@ -991,6 +991,13 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
     
     """
     
+    
+    # TODO: implement start...
+    # Signature:
+    # scipy.signal.chirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True)[source]
+    print freqs[0], freqs[1]
+    print duration
+    print np.max(t)
     sw = scipy.signal.chirp(t, freqs[0], duration, freqs[1],
         method=ramp, phi=0, vertex_zero=True)
     if dBSPL is not None:

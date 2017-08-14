@@ -47,21 +47,30 @@ class Controller(object):
         self.CPars['fMod'] = 40. # modulation frequency
         self.CPars['RF'] = 2.5  # rise-fall time, ms
         self.CPars['nreps'] = 1  # repetitions in a single sweep
-        self.CPars['interstimulus_interval'] = 1.0  # time between stimuli, s
+        self.CPars['interstimulus_interval'] = 0.8  # time between stimuli in a sweep (trial), s
         self.CPars['intertrial_interval'] = 1.0  # time between trials in RI and FRA, s
         self.CPars['protocol'] = 'Tone RI'
         self.CPars['randomize'] = False  # randomize order of presentation (or not...)
         
+        # click subgroup
         self.CPars['click_interval'] = 50.
         self.CPars['click_N'] = 4
         self.CPars['click_duration'] = 1e-4
         
+        # RSS subgroup
         self.CPars['RSS_cf'] = 16.0
         self.CPars['RSS_grouping'] = 8
         self.CPars['RSS_octaves'] = 3
         self.CPars['RSS_SD'] = 12.
         self.CPars['RSS_spacing'] = 64
         
+        # fm sweep subgroup
+        self.CPars['FMSweep_duration'] = 0.5
+        self.CPars['FMSweep_ramptype'] = 'linear'
+        self.CPars['FMSweep_f_start'] = 4.
+        self.CPars['FMSweep_f_end'] = 48.
+        
+        # CMMR subgroup
         self.CPars['CMMR_flanking_bands'] = 3  # flanking bands
         self.CPars['CMMR_flanking_phase'] = 'comodulated'  # flanking bands comodulated 
         self.CPars['CMMR_flanking_spacing'] = 0.5  # octaves
@@ -142,7 +151,17 @@ class Controller(object):
                     self.CPars['click_N'] = data
                 if path[1] == 'Duration':
                     self.CPars['click_duration'] = data
-            
+
+            if path[0] == 'FMSweep':
+                if path[1] == 'Duration':
+                    self.CPars['FMSweep_duration'] = data
+                if path[1] == 'Ramp Type':
+                    self.CPars['FMSweep_ramptype'] = data
+                if path[1] == 'Freq Start':
+                    self.CPars['FMSweep_f_start'] = data
+                if path[1] == 'Freq End':
+                    self.CPars['FMSweep_f_end'] = data
+                
             if path[0] == 'Modulation':
                 if path[1] == 'Modulation Depth':
                     self.CPars['dMod'] = data
@@ -441,8 +460,9 @@ class Controller(object):
                             fmod=self.CPars['fMod'], dmod=self.CPars['dMod'], seed=seed)
 
         elif stim in ['FM Sweep']:
-            wave = sound.FMSweep(rate=Fs, duration=0.5, dbspl=level,
-                               start=0., ramp='linear', freqs=[16000, 200])
+            wave = sound.FMSweep(rate=Fs, duration=self.CPars['FMSweep_duration'], dbspl=level,
+                                start=self.CPars['delay'], ramp=self.CPars['FMSweep_ramptype'],
+                                freqs=[self.CPars['FMSweep_f_start']*1000., self.CPars['FMSweep_f_end']*1000.])
 
         elif stim in ['Noise RI', 'Noise Search']:
             if stim in ['Noise RI']:
@@ -526,6 +546,7 @@ class Controller(object):
             specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wavesound.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
             thr = 0. # 1e-8
             Sxx[Sxx <= thr] = thr
+            # 3 probably better to use matplotlib's spectrogram
             # pos = np.array([0., 1., 0.5, 0.25, 0.75])
             # color = np.array([[0,255,255,255], [255,255,0,255], [0,0,0,255], (0, 0, 255, 255), (255, 0, 0, 255)], dtype=np.ubyte)
             # cmap = pg.ColorMap(pos, color)
@@ -566,11 +587,11 @@ class BuildGui(object):
                 {'name': 'Frequencies', 'type': 'str', 'value': '4;48/8l',
                     'suffix': 'kHz', 'default': '4;48/8l'},
                                             
-                {'name': 'Repetitions', 'type': 'int', 'value': 1, 'limits': [1, 10000], 'default': 1, 'tip': 'Stimuli per sweep'},
+                {'name': 'Repetitions', 'type': 'int', 'value': 1, 'limits': [1, 10000], 'default': 1, 'tip': 'Number of Stimuli per sweep'},
                 {'name': 'Intertrial Interval', 'type': 'float', 'value': 1., 'limits': [0.5, 300.], 
                     'suffix': 's', 'default': 1.0, 'tip': 'Time between sweeps (trials) in FRA and RI protocols'},
-                {'name': 'Interstimulus Interval', 'type': 'float', 'value': 1., 'limits': [0.2, 300.], 
-                    'suffix': 's', 'default': 1.0, 'tip': 'Time between stimuli in a sweep'},
+                {'name': 'Interstimulus Interval', 'type': 'float', 'value': 0.8, 'limits': [0.01, 300.], 
+                    'suffix': 's', 'default': 0.8, 'tip': 'Time between stimuli in a sweep'},
                 {'name': 'Randomize', 'type': 'bool', 'value': False, 'default': False, 'tip': 'Randomize presentation order in all dimensions'},
                 {'name': 'Duration', 'type': 'float', 'value': 0.2, 'step': 0.05, 'limits': [0.001, 10],
                     'suffix': 's', 'default': 0.2, 'tip': 'Sound duration, in seconds'},
@@ -584,6 +605,16 @@ class BuildGui(object):
                     'default': 4},
                   {'name': 'Duration', 'type': 'float', 'value': 1e-4, 'step': 10e-6, 
                       'limits': [10e-6, 1e-3], 'suffix': 's', 'default': 1e-4},
+             ]},
+
+             {'name': 'FMSweep', 'type': 'group', 'children': [
+                  {'name': 'Duration', 'type': 'float', 'value': 0.5, 'step': 0.05, 
+                      'limits': [5e-3, 10], 'suffix': 's', 'default': 0.5},
+                  {'name': 'Ramp Type', 'type': 'list', 'values': ['linear', 'logarithmic'], 'value': 'linear'},
+                  {'name': 'Freq Start', 'type': 'float', 'value': 4, 'step': 1, 'limits': [1., 100.0],
+                    'default': 4},
+                  {'name': 'Freq End', 'type': 'float', 'value': 48, 'step': 1, 'limits': [1., 100.0],
+                    'default': 48},
              ]},
 
              {'name': 'Modulation/CMMR', 'type': 'group', 'children': [
