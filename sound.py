@@ -1,5 +1,11 @@
 """
 Tools for generating auditory stimuli. 
+
+Notes:
+1. Conversion to "dBSPL" shyould only be used fwhen generating stimuli for models
+   Otherwise, the amplitude is hardware dependent, and dBSPL should be None, to pruduce
+   waveforms with amplitude 1 (except the noise)
+
 """
 from __future__ import division
 import numpy as np
@@ -897,10 +903,11 @@ def piptone(t, rt, Fs, F0, dBSPL, pip_dur, pip_start, pip_phase=0.):
     # make pip template
     pip_pts = int(pip_dur * Fs) + 1
     pip_t = np.linspace(0, pip_dur, pip_pts)
+    pip =  np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus, scaled -1 to 1
     if dBSPL is not None:
-        pip = np.sqrt(2) * dbspl_to_pa(dBSPL) * np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus
+        pip = np.sqrt(2) * dbspl_to_pa(dBSPL) * pip # unramped stimulus
     else:
-        pip = np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus
+        pass  # no need to scale here
 
     # add ramp
     ramp_pts = int(rt * Fs) + 1
@@ -1002,5 +1009,7 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
         method=ramp, phi=0, vertex_zero=True)
     if dBSPL is not None:
         sw = np.sqrt(2) * dbspl_to_pa(dBSPL) * sw
+    else:
+        pass  # do not scale here
     return sw
 

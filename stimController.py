@@ -1,4 +1,17 @@
 from __future__ import print_function
+"""
+Stimulus controller
+Generates waveforms, controls stimulus presentation
+Reiles on sound.py for stimulus waveform generation
+Relies on pystim.py for hardware interactions.
+
+Operates in two modes for output intensity:
+
+Atten mode: the levels refer to attenuation in Db, no correction for stimlus
+SPL mode : the levels are corrected by the system calibration on a per frequency basis
+Currently, only the atten mode is supported. 
+
+"""
 
 import sys
 import os
@@ -9,6 +22,7 @@ import time
 import pickle
 import scipy.io.wavfile as wav
 from collections import OrderedDict
+import ConfigParser
 import pyqtgraph as pg
 from PyQt4 import QtGui, QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
@@ -23,7 +37,6 @@ pp = pprint.PrettyPrinter(indent=4)
 
 class Controller(object):
     def __init__(self, ptreedata, plots, img, maingui):
-        self.Vscale = 5.0  # CRITICAL: voltate for staqndard tone level
         self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
@@ -38,10 +51,10 @@ class Controller(object):
 #        self.setAllParameters(ptreedata)
         
         self.CPars['tone_frequency'] = 4.0  # default tone pip frequency, Hz
-        self.CPars['dbspl'] = 75.  # default level
+        self.CPars['attn'] = 35.  # default attenuaton level
         self.CPars['duration'] = 0.2  # stimulus duration, ms
         self.CPars['delay'] = 0.01  # delay to start of stimulus, s
-        self.CPars['RI'] = '20;100/10'  # seqparse for Rate-Intensity intensity series
+        self.CPars['RI'] = '90;20/-10'  # seqparse for Rate-Intensity intensity series
         self.CPars['frequencies'] = '4;48/8l'  # seqparse for tone pip FRA
         self.CPars['dMod'] = 50.  # modulation depth
         self.CPars['fMod'] = 40. # modulation frequency
@@ -51,6 +64,10 @@ class Controller(object):
         self.CPars['intertrial_interval'] = 1.0  # time between trials in RI and FRA, s
         self.CPars['protocol'] = 'Tone RI'
         self.CPars['randomize'] = False  # randomize order of presentation (or not...)
+        self.CPars['IntensityMode'] = 'attenuation'
+        self.CPars['Voltage_Scales'] = {'Tone_V': 10.0, 'maxTone_dB': {'MF1': 110, 'EC1': 83.9},
+                   'Click_V': 5.0, 'maxClick_dB': {'MF1': 108.5, 'EC1': 79.5},
+                   'Noise_V': 2.5, 'maxNoise_dB': {'MF1': 0, 'EC1': 0}}  # we don't actualy know... but also need to clip
         
         # click subgroup
         self.CPars['click_interval'] = 50.
@@ -75,8 +92,10 @@ class Controller(object):
         self.CPars['CMMR_flanking_phase'] = 'comodulated'  # flanking bands comodulated 
         self.CPars['CMMR_flanking_spacing'] = 0.5  # octaves
         
-        #Special for clickable map
-        self.dbspl = 75
+        # Special for clickable map
+        # we don't save the data so we don't directly program these - they change with the point clicked in the map
+
+        self.attn = 35
         self.tone_frequency = 4.0 # khz 
                 
     # def setAllParameters(self, params):
@@ -162,10 +181,10 @@ class Controller(object):
                 if path[1] == 'Freq End':
                     self.CPars['FMSweep_f_end'] = data
                 
-            if path[0] == 'Modulation':
-                if path[1] == 'Modulation Depth':
+            if path[0] == 'Modulation/CMMR':
+                if path[1] == 'Depth':
                     self.CPars['dMod'] = data
-                if path[1] == 'Modulation Frequency':
+                if path[1] == 'Frequency':
                     self.CPars['fMod'] = data
                 if path[1] == 'CMMR Flanking Type':
                     self.CMMR_flanking_type = data
@@ -280,19 +299,29 @@ class Controller(object):
         self.TrialTimer.start(0.1) # start (almost) right away
 
     def pause_run(self):
+        """
+        Pause the run - can continue later. This just stops the timer.
+        Data is not written until stopping conditions are encountered, or stop is clicked.
+        """
         self.maingui.label_status.setText('Paused')
         self.pause_hit = True
         self.TrialTimer.stop()
 
     def continue_run(self):
-        self.maingui.label_status.setText('Running')
-        if self.trial_active:
-            self.TrialTimer.start(0.1) # start (almost) right away where we left off
+        """
+        Continue the run if it has been paused. 
+        """
+        if self.pause_hit:
+            self.maingui.label_status.setText('Running')
+            if self.trial_active:
+                self.TrialTimer.start(0.1) # start (almost) right away where we left off
+        else:
+            return
 
     def next_stimulus(self):
         """
-        Start the timing and data collection, without reinitializing
-        any variables
+        Present the next stimulus in the sequence
+
         Parameters
         ----------
         None
@@ -310,7 +339,7 @@ class Controller(object):
         
         self.TrialTimer.start(int(1000.0*self.CPars['intertrial_interval']))  # reinit timer
          # do diferently according to protocol:
-        spl = self.CPars['dbspl']
+        spl = self.CPars['attn']
         freq = self.CPars['tone_frequency']
         protocol = self.CPars['protocol']
         self.StimRecord['Trials'].append({'Time': '{:%Y.%m.%d %H:%M:%S}'.format(datetime.datetime.now())})  # start time for each trial
@@ -327,7 +356,7 @@ class Controller(object):
             
         elif protocol in ['One Tone']:
             print ('One Tone - presentation')
-            spl = self.dbspl
+            spl = self.attn
             self.StimRecord['savedata'] = False
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
@@ -352,7 +381,7 @@ class Controller(object):
                             f0=freq*1000., dbspl=spl, 
                             pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
                             ramp_duration=self.CPars['RF']/1000)
-                self.wave = wave.sound*self.Vscale
+                self.wave = self.map_voltage(protocol, wave.sound, clip=True)
             print('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl))
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
@@ -360,7 +389,7 @@ class Controller(object):
                 attns=self.convert_spl_attn(spl))
 
         else:
-            spl = self.CPars['dbspl']
+            spl = self.CPars['attn']
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['interstimulus_interval'], reps=self.CPars['nreps'], attns=self.convert_spl_attn(spl))
@@ -389,8 +418,6 @@ class Controller(object):
         self.maingui.label_status.setText('Stopped')
         self.trial_active = False
         self.stop_hit = True
- #       pp.pprint(self.StimRecord)
- #       time.sleep(5.0)  # wait for TDT to finish writing
         self.storeData()
         
     def storeData(self):
@@ -411,7 +438,40 @@ class Controller(object):
         exit(0)
     
     def convert_spl_attn(self, spl):
-        return [100.-spl, 100.-spl]  # just crude, need to clean up
+        if self.CPars['IntensityMode'] == 'attenuation':
+            return spl # use as attenuation directly
+        elif self.CPars['IntensityMode'] == 'spl':
+            return [100.-spl, 100.-spl]  # just crude, need to clean up
+        else:
+            raise ValueError('intensity mode must be attenuation or spl')
+
+    def map_voltage(self, protocol, wave, clip=True):
+        knownprotocols = ['Noise Search', 'Tone Search',
+                        'Tone RI', 'Noise RI', 'FRA',
+                        'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep',
+                        'NotchNoise', 'BandPass Noise', 'One Tone']
+        if protocol not in  knownprotocols:
+            raise ValueError('Protocol not in list we can map for scaling the voltage in map_voltage')
+        if protocol.find('Tone') >=0 or protocol in ['FRA', 'RSS']:
+            print ('Tone')
+            A = self.CPars['Voltage_Scales']['Tone_V']
+        if protocol.find('Clicks') >= 0:
+            A = self.CPars['Voltage_Scales']['Click_V']
+        if protocol.find('Noise') >= 0:
+            print('Noise')
+            A = self.CPars['Voltage_Scales']['Noise_V']
+        if protocol in ['DMR', 'SSN', 'FM Sweep']:
+            print('other')
+            A = 1
+        if protocol in ['Noise SAM', 'Tone SAM']:
+            A = A / 2.0
+        waves = wave * A
+        if clip:
+            waves[waves > 10.] = 10.
+            waves[waves < -10.] = -10.
+        return(waves)
+
+
 
     def prepare_run(self, freq=None, level=None):
         """
@@ -437,7 +497,7 @@ class Controller(object):
            wave = sound.ClickTrain(rate=Fs, duration=self.CPars['duration'], dbspl=level,
                             click_duration=self.CPars['click_duration'], 
                             click_starts=1e-3*np.linspace(self.CPars['delay'], 
-                            self.CPars['click_interval']*self.CPars['click_N'], self.CPars['click_interval']))
+                            self.CPars['duration'], self.CPars['click_N']))
 
         elif stim in ['Tone RI', 'Tone Search']:
             print ('stim: ', stim)
@@ -455,7 +515,7 @@ class Controller(object):
             print ('One Tone')
             self.total_trials = 1
             wave = sound.TonePip(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
-                            f0=self.tone_frequency*1000, dbspl=self.dbspl, 
+                            f0=self.tone_frequency*1000, dbspl=self.attn, 
                             pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
                             ramp_duration=self.CPars['RF']/1000)
 
@@ -531,27 +591,25 @@ class Controller(object):
             self.searchmode = False
 
         if wave is not None:
-            # print ('wave: ', wave)
-            # print ('vscale: ', self.Vscale)
             self.wavesound = wave
-            self.wave, =self.wavesound.sound*self.Vscale, # force computation and rescale the waveform
+            self.wave = self.map_voltage(stim, self.wavesound.sound, clip=True) # force computation and rescale and clip the waveform
 
     def show_wave(self):
         self.prepare_run()  # force computation/setup of stimulus
         self.plots['Wave'].clear()
-        self.plots['Wave'].plot(self.wavesound.time, self.wavesound.sound*self.Vscale)
+        self.plots['Wave'].plot(self.wavesound.time, self.wave)
     
     def show_spectrogram(self):
         self.prepare_run()
         Fs = self.PS.out_sampleFreq
         # show the long term spectrum.
-        f, Pxx_spec = scipy.signal.periodogram(self.wavesound.sound*self.Vscale, Fs) #, window='flattop', nperseg=8192,
+        f, Pxx_spec = scipy.signal.periodogram(self.wave, Fs) #, window='flattop', nperseg=8192,
                        # noverlap=512, scaling='spectrum')
         self.plots['LongTermSpec'].clear()
         self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
         #self.plots['LongTermSpec'].setLogMode(x=True, y=False)
 
-        if self.spectimage:  # enable spectrogram plot
+        if self.maingui.spectimage:  # enable spectrogram plot
             specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wavesound.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
             thr = 0. # 1e-8
             Sxx[Sxx <= thr] = thr
@@ -579,6 +637,33 @@ class BuildGui():
         self.win.show()
         self.win.setWindowTitle('Stim Controller')
         self.win.setGeometry( 100 , 100 , 1024 , 800)
+        self.spectimage = False
+        self.TDTTankDirectory = ''
+        self.TT = TDT.TDTTankInterface()
+        print('self.TT.available: ', self.TT.available)
+
+        # retrieve recent path
+        self.configfilename = 'config.ini'
+        if not os.path.isfile(self.configfilename):
+            # create a configuration file
+            parser = ConfigParser.SafeConfigParser()
+            # initialize parser
+            parser.add_section('TDTTanks')
+            parser.set('TDTTanks', 'dir', '')
+            fh = open(self.configfilename, 'w')
+            parser.write(fh)
+            fh.close()
+        else:
+            parser = ConfigParser.SafeConfigParser()
+            parser.read('config.ini')
+            self.TDTTankDirectory = parser.get('TDTTanks', 'dir')
+            print('tankd dir: ', self.TDTTankDirectory)
+            self.TT.tank_directory = self.TDTTankDirectory
+            if len(self.TDTTankDirectory) > 0:
+                self.TT.open_tank()
+                lastblock = self.TT.find_last_block()
+                self.TT.close_tank()
+                self.TT.show_tank_path()
 
         # Define parameters that control aquisition and buttons...
         params = [
@@ -591,8 +676,8 @@ class BuildGui():
                     'suffix': 'kHz', 'default': 4.0},
                 {'name': 'Rise-Fall', 'type': 'float', 'value': 2.5, 'step': 0.5, 'limits': [0.5, 20.],
                     'suffix': 'ms', 'default': 2.5},
-                {'name': 'Intensities', 'type': 'str', 'value': '20;90/10',
-                    'suffix': 'dB', 'default': '20;90/10'},
+                {'name': 'Intensities', 'type': 'str', 'value': '90;20/-10',
+                    'suffix': 'dBAttn', 'default': '90;20/-10'},
                 {'name': 'Frequencies', 'type': 'str', 'value': '4;48/8l',
                     'suffix': 'kHz', 'default': '4;48/8l'},
                                             
@@ -654,12 +739,7 @@ class BuildGui():
                     
 
             {'name': 'File From Disk', 'type': 'str', 'value': 'test.wav', 'default': 'test.wav'},
-            
-            # {'name': 'Show Waveform', 'type': 'action', 'height': 12},
-            # {'name': 'Show Spectrum', 'type': 'action'},
-            # {'name': 'Run', 'type': 'action'},
-            # {'name': 'Pause', 'type': 'action'},
-            # {'name': 'Stop', 'type': 'action'},
+
         ]
         
         self.ptree = ParameterTree()
@@ -725,7 +805,6 @@ class BuildGui():
         self.plots['LongTermSpec'].getAxis('bottom').setLabel('F (Hz)', color="#ff0000")
 
 
-        self.spectimage = False
         if self.spectimage:
             self.img = pg.ImageView() # view=self.plots['Spec'])
             arr = np.random.random((100, 32))
@@ -786,9 +865,6 @@ class BuildGui():
         self.recentpath = ''
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
-        print(dir(TDT))
-        self.TT = TDT.TDTTankInterface()
-        print('self.TT.available: ', self.TT.available)
         self.btn_tdt.clicked.connect(self.getTDTTank) # self.TT.set_tank_path)
      #    self.ButtonEvents = QtCore.QTimer() # get a Q timer
      #    self.btn_stop.clicked.connect(timer, SIGNAL(timeout()), this, SLOT(processOneThing()));
@@ -810,12 +886,19 @@ class BuildGui():
                                     QtGui.QFileDialog.ShowDirsOnly))
         self.recentpath = self.TT.tank_directory
         print('Tank dir selected: ', self.TT.tank_directory)
+        self.setTankIni(self.TT.tank_directory)
         self.TT.open_tank()
         lastblock = self.TT.find_last_block()
         self.TT.close_tank()
-        print('last block: ', lastblock)
         self.TT.show_tank_path()
 
+    def setTankIni(self, newtankname):
+        parser = ConfigParser.SafeConfigParser()
+        parser.read('config.ini')
+        parser.set('TDTTanks', 'dir', newtankname)
+        fh = open(self.configfilename, 'w')
+        parser.write(fh)
+        fh.close()
 
     def getClickedLocation(self, points):
         # print (dir(points))

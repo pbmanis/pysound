@@ -233,7 +233,6 @@ class PyStim:
 
     def present_stim(self, waveforms, stimulus_period=1.0, reps=1, runmode=RZ5D_Run):
         sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
-        #print('sf: ', sf, 'stimulus period: ', stimulus_period)
         self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
@@ -355,7 +354,7 @@ class PyStim:
             return
         
         if 'PA5' in self.hardware:
-            self.setAttens(atten_left=attns[0])
+            self.setAttens(atten_left=attns)
         
         if 'RZ5D' in self.hardware:
             swcount = -1
@@ -431,7 +430,6 @@ class PyStim:
 
     def prepare_NIDAQ(self, wavel, waver = None):
         samplefreq = self.out_sampleFreq
-        print('niddaq samplefreq: ', samplefreq)
         self.task = self.NIDevice.createTask()  # creat a task for the NI 6731 board.
         self.task.CreateAOVoltageChan("/%s/ao0" % self.NIDevicename, "ao0", -10., 10.,
                                       nidaq.Val_Volts, None)
