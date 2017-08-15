@@ -261,6 +261,86 @@ class NoisePip(Sound):
         return pipnoise(self.time, o['ramp_duration'], o['rate'],
                         o['dbspl'], o['pip_duration'], o['pip_start'], o['seed'])
 
+class NoiseBandPip(Sound):
+    """ 
+    One or more noise pips with cosine-ramped edges with limited frequencies/notches.
+    Using method of Nelken and Young (Schalk and Sachs)
+    Two independent noises are generated, and multiplied in quadature.
+    To make a bandpass noise, they are low-pass filtered prior to multiplication
+    To make a notch noise, they are band-pass filtered prior to multiplication
+        
+
+    Parameters
+    ----------
+    rate : float
+        Sample rate in Hz
+    duration : float
+        Total duration of the sound
+    seed : int >= 0
+        Random seed
+    dbspl : float
+        Maximum amplitude of tone in dB SPL. 
+    pip_duration : float
+        Duration of each pip including ramp time. Must be at least 
+        2 * ramp_duration.
+    pip_start : array-like
+        Start times of each pip
+    ramp_duration : float
+        Duration of a single ramp period (from minimum to maximum). 
+        This may not be more than half of pip_duration.
+    type : string
+        'Bandpass', 'BP+Notch'
+    noisebw : float
+        (bandwidth of noise)
+    centerfreq : float
+        Center frequency for signal or notch
+    notchbw : float
+        Bandwidth of notch
+        
+    """
+    def __init__(self, **kwds):
+        for k in ['rate', 'duration', 'dbspl', 'pip_duration', 'pip_start', 'ramp_duration', 'seed',
+            'noisebw', 'type', 'notchbw', 'centerfreq']:
+            if k not in kwds:
+                raise TypeError("Missing required argument '%s'" % k)
+        if kwds['pip_duration'] < kwds['ramp_duration'] * 2:
+            raise ValueError("pip_duration must be greater than (2 * ramp_duration).")
+        if kwds['seed'] < 0:
+            raise ValueError("Random seed must be integer > 0")
+        
+        Sound.__init__(self, **kwds)
+        
+    def generate(self):
+        """
+        Call to compute the noise pips
+        
+        Returns
+        -------
+        array : 
+            generated waveform
+        
+        """
+        o = self.opts
+        bbnoise1 = pipnoise(self.time, o['ramp_duration'], o['rate'],
+                        o['dbspl'], o['pip_duration'], o['pip_start'], o['seed'])
+        bbnoise2 = pipnoise(self.time, o['ramp_duration'], o['rate'],
+                        o['dbspl'], o['pip_duration'], o['pip_start'], o['seed']+1)  # independent noises
+        # fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
+        # fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
+        if o['type'] in ['Bandpass']:
+            fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
+            fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
+            bpnoise = fb1*np.cos(2*np.pi*o['centerfreq']*self.time) + fb2*np.sin(2*np.pi*o['centerfreq']*self.time)
+        
+        if o['type'] in ['BP+Notch']:
+            nn1 = signalFilterButter(bbnoise1, filtertype='bandpass',
+                lpf=o['noisebw'], hpf=o['notchbw'], Fs=o['rate'], poles=4)
+            nn2 = signalFilterButter(bbnoise2, filtertype='bandpass',
+                lpf=o['noisebw'], hpf=o['notchbw'], Fs=o['rate'], poles=4)
+            bpnoise = nn1*np.cos(2*np.pi*o['centerfreq']*self.time) + nn2*np.sin(2*np.pi*o['centerfreq']*self.time)
+            
+        return bpnoise
+
 class ClickTrain(Sound):
     """ One or more clicks (rectangular pulses).
     
@@ -346,43 +426,6 @@ class SAMNoise(Sound):
                        o['pip_duration'], o['pip_start'], o['dbspl'],
                        o['fmod'], o['dmod'], 0., o['seed'])
                         
-# class ClickTrain(Sound):
-#     """
-#     Parameters
-#     ----------
-#     rate : float
-#         sample frequency (Hz)
-#     click_start : float (seconds)
-#         time for first click
-#     click_duration : float (seconds)
-#         duration of each click
-#     click_interval : float (seconds)
-#         Interval between clicks
-#     nclicks : int
-#         number of clicks in the train
-#     dbspl : float
-#         maximum sound pressure level of pip
-#
-#     """
-#     def __init__(self, **kwds):
-#         for k in ['click_start', 'click_duration', 'click_interval', 'nclicks', 'dbspl', 'rate']:
-#             if k not in kwds:
-#                 raise TypeError("Missing required argument '%s'" % k)
-#         Sound.__init__(self, **kwds)
-#
-#     def generate(self):
-#         """
-#         Call to compute a click train
-#
-#         Returns
-#         -------
-#         array :
-#             generated waveform
-#
-#         """
-#         o = self.opts
-#         return clicks(self.time, o['rate'], o['click_start'], o['click_duration'],
-#             o['click_interval'], o['nclicks'], o['dbspl'])
 
 class SAMTone(Sound):
     """ SAM tones with cosine-ramped edges.
@@ -472,7 +515,7 @@ class ComodulationMasking(Sound):
                        o['fmod'], o['dmod'], 0.)
         if o['flanking_type'] == 'None':
             return (onfreqmasker+target)/2.0  # scaling... 
-        if o['flanking_type'] in ['3Tone', '3Tones']:
+        if o['flanking_type'] in ['MultiTone']:
             nband = o['flanking_bands']
             octspace = o['flanking_spacing']
             f0 = o['f0']
@@ -1029,10 +1072,8 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
         waveform
     
     
-    """
-    
-    
-    # TODO: implement start...
+    """    
+    # TODO: implement start...correct for sampling rate issues.
     # Signature:
     # scipy.signal.chirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True)[source]
     print freqs[0], freqs[1]
@@ -1046,3 +1087,102 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
         pass  # do not scale here
     return sw
 
+def signalFilter_LPFButter(signal, LPF, samplefreq, NPole=8):
+    """Filter with Butterworth low pass, using time-causal lfilter 
+    
+        Digitally low-pass filter a signal using a multipole Butterworth
+        filter. Does not apply reverse filtering so that result is causal.
+    
+        Parameters
+        ----------
+        signal : array
+            The signal to be filtered.
+        LPF : float
+            The low-pass frequency of the filter (Hz)
+        HPF : float
+            The high-pass frequency of the filter (Hz)
+        samplefreq : float
+            The uniform sampling rate for the signal (in seconds)
+        npole : int
+            Number of poles for Butterworth filter. Positive integer.
+
+        Returns
+        -------
+        w : array
+        filtered version of the input signal
+
+    """
+    flpf = float(LPF)
+    sf = float(samplefreq)
+    wn = [flpf/(sf/2.0)]
+    b, a = scipy.signal.butter(NPole, wn, btype='low', output='ba')
+    zi = scipy.signal.lfilter_zi(b,a)
+    out, zo = scipy.signal.lfilter(b, a, signal, zi=zi*signal[0])
+    return(np.array(out))
+
+def signalFilterButter(signal, filtertype='bandpass', lpf=None, hpf=None, Fs=None, poles=8):
+    """Filter signal within a bandpass with elliptical filter
+
+    Digitally filter a signal with an butterworth filter; handles
+    bandpass filtering between two frequencies. 
+
+    Parameters
+    ----------
+    signal : array
+        The signal to be filtered.
+    LPF : float
+        The low-pass frequency of the filter (Hz)
+    HPF : float
+        The high-pass frequency of the filter (Hz)
+    samplefreq : float
+        The uniform sampling rate for the signal (in seconds)
+
+    Returns
+    -------
+    w : array
+        filtered version of the input signal
+    """
+    sf2 = Fs/2
+    wn = [hpf/sf2, lpf/sf2]
+        
+    filter_b,filter_a=scipy.signal.butter(poles, wn, btype=filtertype)
+    w = scipy.signal.lfilter(filter_b, filter_a, signal) # filter the incoming signal
+    return(w)
+    
+
+
+if __name__ == "__main__":
+    """
+    Test multiplicative bandpass/notch method for noise
+    """
+    import matplotlib.pyplot as mpl
+    Fs = 20000
+    wave1 = NoisePip(rate=Fs, duration=0.5, dbspl=None, pip_duration=0.3,
+            pip_start=[0.05], ramp_duration=0.01, seed=1)
+    wave2 = NoisePip(rate=Fs, duration=0.5, dbspl=None, pip_duration=0.3,
+            pip_start=[0.05], ramp_duration=0.01, seed=2)
+    w1 = wave1.sound
+    w2 = wave2.sound
+    t = wave1.time
+    ax = mpl.subplot(311)
+    fx, Pxx_spec = scipy.signal.periodogram(w1, Fs)
+    print(ax)
+    ax.plot(fx, Pxx_spec, 'k-')
+    f0 = 4000.
+    fb1 = signalFilter_LPFButter(w1, 100., Fs)
+    fb2 = signalFilter_LPFButter(w2, 100., Fs)
+    rn = fb2*np.cos(2*np.pi*f0*t) + fb2*np.sin(2*np.pi*f0*t)
+    fx2, Pxx_spec2 = scipy.signal.periodogram(rn, Fs)
+    ax2 = mpl.subplot(312)
+    ax2.plot(fx2, Pxx_spec2, 'k-')
+    # now notched noise
+    nn1 = signalFilterButter(w1, filtertype='bandpass', lpf=4000., hpf=100., Fs=Fs, poles=4)
+    nn2 = signalFilterButter(w2, filtertype='bandpass', lpf=4000., hpf=100., Fs=Fs, poles=4)
+    rn2 = nn1*np.cos(2*np.pi*f0*t) + nn2*np.sin(2*np.pi*f0*t)
+    fx3, Pxx_spec3 = scipy.signal.periodogram(rn2, Fs)
+    ax3 = mpl.subplot(313)
+    ax3.plot(fx3, Pxx_spec3, 'r-')
+    
+    
+    
+    mpl.show()
