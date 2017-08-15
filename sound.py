@@ -439,6 +439,7 @@ class SAMTone(Sound):
                        o['dbspl'], o['pip_duration'], o['pip_start'])
         return sinusoidal_modulation(self.time, basetone, o['pip_start'], o['fmod'], o['dmod'], 0.)
 
+
 class ComodulationMasking(Sound):
     """
     rate=Fs, duration=self.duration, f0=self.tone_frequency*1000., 
@@ -449,7 +450,8 @@ class ComodulationMasking(Sound):
     
     """
     def __init__(self, **kwds):
-        for k in ['rate', 'pip_duration', 'f0', 'dbspl', 'fmod', 'dmod', 'pip_start', 'ramp_duration',
+        print (kwds)
+        for k in ['rate', 'duration', 'pip_duration', 'f0', 'dbspl', 'fmod', 'dmod', 'pip_start', 'ramp_duration',
                   'flanking_type', 'flanking_spacing', 'flanking_phase', 'flanking_bands']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
@@ -459,21 +461,51 @@ class ComodulationMasking(Sound):
         
         o = self.opts
         # start with center tone
-        basetone = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'], 
+        onfreqmasker = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'], 
                        o['dbspl'], o['pip_duration'], o['pip_start'])
-        basetone = sinusoidal_modulation(self.time, basetone, o['pip_start'], o['fmod'], o['dmod'], 0.)
-        if o['flanking_type'] == None:
-            return basetone
-        if o['flanking_type'] == '3Tone':
-            flankfs = [o['f0']*(k+1)*o['flanking_spacing'] for k in range(o['flanking_bands']) ]
-            flankfs.append([o['f0']/((k+1)*o['flanking_spacing']) for k in range(o['flanking_bands']) ])
-            if o['flanking_phase'] == 'comodulated':
+        onfreqmasker = sinusoidal_modulation(self.time, onfreqmasker, o['pip_start'],
+            o['fmod'], o['dmod'], 0.)
+        tardelay = 0.5/o['fmod']  # delay by one half cycle
+        target = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'], 
+                       o['dbspl'], o['pip_duration']-tardelay, [p + tardelay for p in o['pip_start']])
+        target = sinusoidal_modulation(self.time, target, [p + tardelay for p in o['pip_start']],
+                       o['fmod'], o['dmod'], 0.)
+        if o['flanking_type'] == 'None':
+            return (onfreqmasker+target)/2.0  # scaling... 
+        if o['flanking_type'] in ['3Tone', '3Tones']:
+            nband = o['flanking_bands']
+            octspace = o['flanking_spacing']
+            f0 = o['f0']
+            flankfs = [f0*(2**(octspace*(k+1))) for k in range(nband)]
+            flankfs.extend([f0/((2**(octspace*(k+1)))) for k in range(nband)])
+            flankfs = sorted(flankfs)
+            flanktone = [[]]*len(flankfs)
+            for i, fs in enumerate(flankfs):
+                flanktone[i] = piptone(self.time, o['ramp_duration'], o['rate'], flankfs[i], 
+                               o['dbspl'], o['pip_duration'], o['pip_start'])
+        print('type ,phase: ', o['flanking_type'], o['flanking_phase'])
+        if o['flanking_type'] == 'NBnoise':
+            raise ValueError('Flanking type nbnoise not yet implemented')
+        if o['flanking_phase'] == 'Comodulated':
                 ph = np.zeros(len(flankfs))
-            elif o['flanking_phase'] == 'codeviant':
+        if o['flanking_phase'] == 'Codeviant':
                 ph = 2.0*np.pi*np.arange(-o['flanking_bands'], o['flanking_bands']+1, 1)/o['flanking_bands']
-        assert 1 == 0  # force fail if you try to do cmr, not complete yet
-        
-        
+        if o['flanking_phase'] == 'Random':
+                ph = 2.0*np.pi*np.arange(-o['flanking_bands'], o['flanking_bands']+1, 1)/o['flanking_bands']
+                raise ValueError('Random flanking phases not implemented')
+        print('flanking phases: ', ph)
+        print (len(flanktone))
+        print('flanking freqs: ', flankfs)
+        for i, fs in enumerate(flankfs):
+            flanktone[i] = sinusoidal_modulation(self.time, flanktone[i],
+                    o['pip_start'], o['fmod'], o['dmod'], ph[i])
+            if i == 0:
+                maskers = flanktone[i]
+            else:
+                maskers = maskers + flanktone[i]
+        signal = (onfreqmasker+maskers+target)/(o['flanking_bands']+2)
+        return signal
+
 
 class DynamicRipple(Sound):
     def __init__(self, **kwds):
@@ -493,7 +525,8 @@ class DynamicRipple(Sound):
         Returns
         -------
         array :
-            generated waveform
+           
+           generated waveform
         """
         o = self.opts
         self.dmr.set_params(Fs=o['rate'], duration=o['duration']+1./o['rate'])

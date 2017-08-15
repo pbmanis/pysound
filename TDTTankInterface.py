@@ -37,6 +37,7 @@ class TDTTankInterface():
         while self.TDT_Tank.QueryBlockName(blocknum) != '':
             blocknum = blocknum + 1
         #blocknum = blocknum-1
+        self.lastblock = blocknum
         return blocknum
     
     def close_tank(self):

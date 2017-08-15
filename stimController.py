@@ -51,7 +51,7 @@ class Controller(object):
 #        self.setAllParameters(ptreedata)
         
         self.CPars['tone_frequency'] = 4.0  # default tone pip frequency, Hz
-        self.CPars['attn'] = 35.  # default attenuaton level
+        self.CPars['attn'] = 50.  # default attenuaton level
         self.CPars['duration'] = 0.2  # stimulus duration, ms
         self.CPars['delay'] = 0.01  # delay to start of stimulus, s
         self.CPars['RI'] = '90;20/-10'  # seqparse for Rate-Intensity intensity series
@@ -88,9 +88,10 @@ class Controller(object):
         self.CPars['FMSweep_f_end'] = 48.
         
         # CMMR subgroup
-        self.CPars['CMMR_flanking_bands'] = 3  # flanking bands
-        self.CPars['CMMR_flanking_phase'] = 'comodulated'  # flanking bands comodulated 
-        self.CPars['CMMR_flanking_spacing'] = 0.5  # octaves
+        self.CPars['CMMR_flanking_type'] = '3Tone'  # flanking type (tones, etc)
+        self.CPars['CMMR_flanking_bands'] = 2  # flanking bands
+        self.CPars['CMMR_flanking_phase'] = 'Comodulated'  # flanking bands comodulated 
+        self.CPars['CMMR_flanking_spacing'] = 1  # octaves
         
         # Special for clickable map
         # we don't save the data so we don't directly program these - they change with the point clicked in the map
@@ -156,6 +157,8 @@ class Controller(object):
                     self.CPars['delay'] = data
                 if path[1] == 'Tone Frequency':
                     self.CPars['tone_frequency'] = data
+                if path[1] == 'Attenuator':
+                    self.CPars['attn'] = data
                 if path[1] == 'Rise-Fall':
                     self.CPars['RF'] = data
                 if path[1] == 'Intensities':
@@ -187,7 +190,7 @@ class Controller(object):
                 if path[1] == 'Frequency':
                     self.CPars['fMod'] = data
                 if path[1] == 'CMMR Flanking Type':
-                    self.CMMR_flanking_type = data
+                    self.CPars['CMMR_flanking_type'] = data
                 if path[1] == 'CMMR Flanking Bands':
                     self.CPars['CMMR_flanking_bands'] = data
                 if path[1] == 'CMMR Flanking Phase':
@@ -237,6 +240,8 @@ class Controller(object):
                 self.CPars['delay'] = p['value']
             if p == 'Tone Frequency':
                 self.CPars['tone_frequency'] = p['value']
+            if p == 'Attenuator':
+                self.CPars['attn'] = p['value']
             if p == 'Rise-Fall':
                 self.CPars['RF'] = p['value']
             if p == 'Intensities':
@@ -284,10 +289,13 @@ class Controller(object):
         self.StimRecord['Params'] = self.CPars  # all selected parameters
         self.StimRecord['Trials'] = []  # store trial info in a list
         self.StimRecord['savedata'] = True  # flag to save data - set to false by search modes
-        self.maingui.TT.open_tank()
-        lastblock = self.maingui.TT.find_last_block()
-        self.maingui.TT.close_tank()
-        self.StimRecord['FirstBlock'] = lastblock
+        if self.maingui.TT.available:
+            self.maingui.TT.open_tank()
+            lastblock = self.maingui.TT.find_last_block()
+            self.maingui.TT.close_tank()
+            self.StimRecord['FirstBlock'] = lastblock
+        else:
+            self.StimRecord['FirstBlock'] = 1
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.lastfreq = None
         self.trial_count = 0
@@ -343,10 +351,13 @@ class Controller(object):
         freq = self.CPars['tone_frequency']
         protocol = self.CPars['protocol']
         self.StimRecord['Trials'].append({'Time': '{:%Y.%m.%d %H:%M:%S}'.format(datetime.datetime.now())})  # start time for each trial
-        self.maingui.TT.open_tank()
-        lastblock = self.maingui.TT.find_last_block()
-        self.maingui.TT.close_tank()
-        self.StimRecord['Trials'][-1]['Block'] = lastblock
+        if self.maingui.TT.available:
+            self.maingui.TT.open_tank()
+            lastblock = self.maingui.TT.find_last_block()
+            self.maingui.TT.close_tank()
+            self.StimRecord['Trials'][-1]['Block'] = lastblock
+        else:
+            self.StimRecord['Trials'][-1]['Block'] = 1
         if protocol in ['Noise Search', 'Tone Search']:
             self.StimRecord['savedata'] = False
             self.PS.play_sound(self.wave, self.wave,
@@ -424,10 +435,11 @@ class Controller(object):
         Write the stimulus parameters to a disk file (ultimately in the current tank)
         """
         alldat = [self.CPars, self.StimRecord]
-        fh = open(os.path.join(self.maingui.TT.tank_directory, 'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['protocol'], 
+        if self.maingui.TT.available:
+            fh = open(os.path.join(self.maingui.TT.tank_directory, 'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['protocol'], 
             self.StimRecord['FirstBlock'], self.StimRecord['Trials'][-1]['Block'])), 'w')
-        pickle.dump(alldat, fh)
-        fh.close()
+            pickle.dump(alldat, fh)
+            fh.close()
         
         
         
@@ -440,7 +452,7 @@ class Controller(object):
         if self.CPars['IntensityMode'] == 'attenuation':
             return spl # use as attenuation directly
         elif self.CPars['IntensityMode'] == 'spl':
-            return [100.-spl, 100.-spl]  # just crude, need to clean up
+            return [100.-spl, 100.-spl]  # just rough, within 15dB, need to clean up
         else:
             raise ValueError('intensity mode must be attenuation or spl')
 
@@ -448,7 +460,7 @@ class Controller(object):
         knownprotocols = ['Noise Search', 'Tone Search',
                         'Tone RI', 'Noise RI', 'FRA',
                         'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep',
-                        'NotchNoise', 'BandPass Noise', 'One Tone']
+                        'NotchNoise', 'BandPass Noise', 'One Tone', 'CMMR']
         if protocol not in  knownprotocols:
             raise ValueError('Protocol not in list we can map for scaling the voltage in map_voltage')
         if protocol.find('Tone') >=0 or protocol in ['FRA', 'RSS', 'One Tone']:
@@ -461,7 +473,9 @@ class Controller(object):
             A = self.CPars['Voltage_Scales']['Noise_V']
         if protocol in ['DMR', 'SSN', 'FM Sweep']:
             print('other')
-            A = 1
+            A = 1.0
+        if protocol in ['CMMR']:
+            A = 5.0
         if protocol in ['Noise SAM', 'Tone SAM']:
             A = A / 2.0
         waves = wave * A
@@ -562,10 +576,11 @@ class Controller(object):
                                 # flankingPhase is comodulated or codeviant or random (if type is not None)
                                 # spacing is band spacing in octaves (for flanking bands)
                                 # 
-            wave = sound.ComodulationMasking(rate=Fs, duration=self.CPars['duration'],
-                f0=self.CPars['tone_frequency']*1000., 
+            wave = sound.ComodulationMasking(rate=Fs, duration=self.CPars['duration']+self.CPars['delay'],
+                pip_duration=self.CPars['duration'], pip_start=[self.CPars['delay']],
+                f0=self.CPars['tone_frequency']*1000., ramp_duration=self.CPars['RF']/1000.,
                 dbspl=level, fmod=self.CPars['fMod'], dmod=self.CPars['dMod'],
-                flanking_type=self.CMMR_flanking_type, flanking_spacing=self.CPars['CMMR_flanking_spacing'],
+                flanking_type=self.CPars['CMMR_flanking_type'], flanking_spacing=self.CPars['CMMR_flanking_spacing'],
                 flanking_phase=self.CPars['CMMR_flanking_phase'], flanking_bands=self.CPars['CMMR_flanking_bands'],
                 )
 
@@ -606,10 +621,17 @@ class Controller(object):
         self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
         #self.plots['LongTermSpec'].setLogMode(x=True, y=False)
 
+        print (self.maingui.spectimage)
         if self.maingui.spectimage:  # enable spectrogram plot
-            specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wavesound.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
-            thr = 0. # 1e-8
-            Sxx[Sxx <= thr] = thr
+            import matplotlib.pyplot as mpl
+            ax1 = mpl.subplot(211)
+            mpl.plot(self.wavesound.time, self.wave)
+            mpl.subplot(212, sharex=ax1)
+            Pxx, freqs, bins, im = mpl.specgram(self.wave, NFFT=128, Fs=Fs, noverlap=64, pad_to=256)
+            mpl.show()
+ #           specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wavesound.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
+ #           thr = 0. # 1e-8
+ #           Sxx[Sxx <= thr] = thr
             # 3 probably better to use matplotlib's spectrogram
             # pos = np.array([0., 1., 0.5, 0.25, 0.75])
             # color = np.array([[0,255,255,255], [255,255,0,255], [0,0,0,255], (0, 0, 255, 255), (255, 0, 0, 255)], dtype=np.ubyte)
@@ -620,7 +642,7 @@ class Controller(object):
             # # print (dir(self.img.imageItem))
             # self.img.imageItem.setLookupTable(lut)
             # self.img.setLevels([-40,50])
-            self.img.setImage(Sxx.T)
+            #self.img.setImage(Sxx.T)
 
 
 # Build GUI and window
@@ -628,16 +650,25 @@ class Controller(object):
 class BuildGui():
     def __init__(self):
         self.app = pg.mkQApp()
+        self.mainwin = QtGui.QMainWindow()
         self.win = QtGui.QWidget()
         self.layout = QtGui.QGridLayout()
         self.win.setLayout(self.layout)
-        self.win.show()
-        self.win.setWindowTitle('Stim Controller')
-        self.win.setGeometry( 100 , 100 , 1024 , 800)
+        self.mainwin.setCentralWidget(self.win)
+        self.mainwin.show()
+        self.mainwin.setWindowTitle('Stim Controller')
+        self.mainwin.setGeometry( 100 , 100 , 1024 , 800)
         self.spectimage = False
         self.TDTTankDirectory = ''
         self.TT = TDT.TDTTankInterface()
         print('self.TT.available: ', self.TT.available)
+        self.statusBar = QtGui.QStatusBar()
+        self.mainwin.setStatusBar(self.statusBar)
+        self.statusMessage = QtGui.QLabel('')
+        self.statusBar.addWidget(self.statusMessage)
+        self.permStatusMessage = QtGui.QLabel('ManisLab')
+        self.statusBar.addPermanentWidget(self.permStatusMessage)
+        
 
         # retrieve recent path
         self.configfilename = 'config.ini'
@@ -667,10 +698,12 @@ class BuildGui():
             {'name': 'Stimulus', 'type': 'group', 'children': [
                 {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search',
                         'Tone RI', 'Noise RI', 'FRA',
-                        'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep',
+                        'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'CMMR', 'FM Sweep',
                         'NotchNoise', 'BandPass Noise'], 'value': 'Tone RI'},
                 {'name': 'Tone Frequency', 'type': 'float', 'value': 4.0, 'step': 1.0, 'limits': [0.5, 99.0],
                     'suffix': 'kHz', 'default': 4.0},
+                {'name': 'Attenuator', 'type': 'float', 'value': 50, 'step': 5.0, 'limits': [0., 120.0],
+                    'suffix': 'dB', 'default': 50.0},
                 {'name': 'Rise-Fall', 'type': 'float', 'value': 2.5, 'step': 0.5, 'limits': [0.5, 20.],
                     'suffix': 'ms', 'default': 2.5},
                 {'name': 'Intensities', 'type': 'str', 'value': '90;20/-10',
@@ -713,13 +746,13 @@ class BuildGui():
                     'suffix': 'Hz', 'default': 40.0},
                   {'name': 'Depth', 'type': 'float', 'value': 50.0, 'step': 5.0, 'limits': [0.0, 200.0],
                     'suffix': '%', 'default': 50.},
-                  {'name': 'CMMR Flanking Type', 'type': 'list', 'values': ['None', '3Tone', 'Noise'], 'value': 'Noise'},
-                  {'name': 'CMMR Flanking Phase', 'type': 'list', 'values': ['Comodulated', 'Deviant', 'Random'],
-                   'value': 'Noise'},
-                  {'name': 'CMMR Flanking Bands', 'type': 'int', 'value': 3, 'step': 1, 'limits': [0, 10],
-                   'default': '3'},
-                  {'name': 'CMMR Flanking Spacing', 'type': 'float', 'value': 0.5, 'step': 1/8., 
-                      'limits': [1/16., 2.], 'suffix': 'octaves', 'default': 0.5},
+                  {'name': 'CMMR Flanking Type', 'type': 'list', 'values': ['None', '3Tone', 'NBnoise'], 'value': '3Tone'},
+                  {'name': 'CMMR Flanking Phase', 'type': 'list', 'values': ['Comodulated', 'Codeviant', 'Random'],
+                   'value': 'Comodulated'},
+                  {'name': 'CMMR Flanking Bands', 'type': 'int', 'value': 2, 'step': 1, 'limits': [0, 10],
+                   'default': 2},
+                  {'name': 'CMMR Flanking Spacing', 'type': 'float', 'value': 1, 'step': 1/8., 
+                      'limits': [1/16., 2.], 'suffix': 'octaves', 'default': 1},
              ]},
              {'name': 'RSS Params', 'type': 'group', 'children': [
                  {'name': 'CF', 'type': 'float', 'value': 16.0, 'step': 2.0, 'limits': [1.0, 64.],
@@ -759,6 +792,8 @@ class BuildGui():
         self.label_status.sizeHint = QtCore.QSize(100, 20)
         self.label_trialctr.setAutoFillBackground(True)
         self.label_trialctr.sizeHint = QtCore.QSize(100, 20)
+        self.spect_check = QtGui.QCheckBox('Spectrogram')
+        self.spect_check.setChecked(False)  # just be sure.
         hbox = QtGui.QGridLayout()
         hbox.setColumnStretch(0, 1)
         hbox.setColumnStretch(1, 1)
@@ -776,6 +811,7 @@ class BuildGui():
         hbox.addWidget(self.btn_waveform, 2, 0, 1, 1)
         hbox.addWidget(self.btn_spectrum, 2, 1, 1, 1)
         hbox.addWidget(self.btn_tdt, 2, 2, 1, 1)
+        hbox.addWidget(self.spect_check, 2, 3, 1, 1)
         
         self.layout.addLayout(hbox, 0, 0, 1, 2)
         
@@ -802,15 +838,15 @@ class BuildGui():
         self.plots['LongTermSpec'].getAxis('bottom').setLabel('F (Hz)', color="#ff0000")
 
 
-        if self.spectimage:
-            self.img = pg.ImageView() # view=self.plots['Spec'])
-            arr = np.random.random((100, 32))
-            self.img.setImage(arr)
-            self.img.ui.roiBtn.hide()
-    #        self.img.ui.menuBtn.hide()
-            self.img.show()
-        else:
-            self.img = None
+    #     if self.spectimage:
+    #         self.img = pg.ImageView() # view=self.plots['Spec'])
+    #         arr = np.random.random((100, 32))
+    #         self.img.setImage(arr)
+    #         self.img.ui.roiBtn.hide()
+    # #        self.img.ui.menuBtn.hide()
+    #         self.img.show()
+    #     else:
+        self.img = None
 
         glayout.nextRow()
         l2 = glayout.addLayout(colspan=3, border=(50,0,0))  # embed a new layout
@@ -894,20 +930,25 @@ class BuildGui():
         self.btn_continue.clicked.connect(self.controller.next_stimulus)
         self.btn_stop.clicked.connect(self.controller.stop_run)
         self.btn_quit.clicked.connect(self.controller.quit)
+        self.spect_check.clicked.connect(self.speccheck)
+        self.updateStatusMessage()
+
+    def speccheck(self):
+        self.spectimage = self.spect_check.isChecked()
 
     def getTDTTank(self, dirname=None):
-        print( 'setting dialog')
         filedialog = QtGui.QFileDialog()
         filedialog.setFileMode(QtGui.QFileDialog.Directory)
         self.TT.tank_directory = str(filedialog.getExistingDirectory(None, "Select Tank Directory", self.recentpath,
                                     QtGui.QFileDialog.ShowDirsOnly))
         self.recentpath = self.TT.tank_directory
-        print('Tank dir selected: ', self.TT.tank_directory)
+#        print('Tank dir selected: ', self.TT.tank_directory)
         self.setTankIni(self.TT.tank_directory)
         self.TT.open_tank()
         lastblock = self.TT.find_last_block()
         self.TT.close_tank()
         self.TT.show_tank_path()
+        self.updateStatusMessage()
 
     def setTankIni(self, newtankname):
         parser = ConfigParser.SafeConfigParser()
@@ -917,6 +958,13 @@ class BuildGui():
         parser.write(fh)
         fh.close()
 
+    def updateStatusMessage(self):
+        if self.TT.available is False:
+            message = ('No TDT Tank')
+        else:
+            message = ('Tank: {0:s}  CurrentBlock: {1:d}'.format(self.TT.tank_directory, self.TT.lastblock))
+        self.statusMessage.setText(message)
+        
     def getClickedLocation(self, points):
         # print (dir(points))
         # print (points.event())
