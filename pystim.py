@@ -126,7 +126,7 @@ class PyStim:
             
         self.NIDevice = nidaq.NIDAQ.getDevice(device_info['devicename'])
         self.NIDevicename = device_info['devicename']
-        self.out_sampleFreq = 100000
+        self.out_sampleFreq = 200000
         return True
     
     def show_nidaq(self):
@@ -278,7 +278,7 @@ class PyStim:
                 self.PA5.ConnectPA5("USB", 2)
                 self.PA5.SetAtten(atten_right)
 
-    def play_sound(self, wavel, waver=None, samplefreq=44100, postduration = 0.35, attns=[20., 20.],
+    def play_sound(self, wavel, waver=None, samplefreq=44100, postduration = 0.05, attns=[20., 20.],
             isi=1.0, reps=1, storedata=True):
         """
         play_sound sends the sound out to an audio device.
@@ -365,12 +365,12 @@ class PyStim:
             while self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']) == 0:  # wait for zSwDone to be set
                 cs = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['CurrentSweep'])
                 if cs > swcount:
-                    print('   Sweep = %d' % cs)
+                   # print('   Sweep = %d' % cs)
                     swcount = swcount + 1
                 time.sleep(0.1)
                 elapsed_time = time.time() - start_time  # elapsed time is in seconds
                 if elapsed_time > deadmantimer:
-                    print('deadmanexit')
+                    print('DeadmanExit')
                     break
             self.RZ5D.SetSysMode(RZ5D_Standby)
             self.task.stop()
