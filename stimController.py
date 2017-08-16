@@ -115,6 +115,17 @@ class Controller(object):
                     print('   %s = %s' % (d, str(self.CPars[k][d])))
                 #pp.pprint(self.CPars)
 
+    def getCurrentBlock(self):
+        if self.maingui.TT.available:
+            self.maingui.TT.open_tank()
+            lastblock = self.maingui.TT.find_last_block()
+            print ('Current block: ', lastblock)
+            self.StimRecord['FirstBlock'] = lastblock
+            self.maingui.TT.close_tank()
+        else:
+            self.StimRecord['FirstBlock'] = 1
+
+
     def start_run(self):
         """
         Initialize variables for the start of a run
@@ -139,6 +150,10 @@ class Controller(object):
         
         sweepdur = nr*isi
         if sweepdur > 0.8*iti:
+            msgbox = QtGui.QMessageBox()
+            msgbox.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+            msgbox.setText('<b><fontcolor: 0xff0000> Stimuli nreps*isi must be < 80\% of iti</b>')
+            msgbox.exec_()
             self.maingui.permStatusMessage.setText('<b><fontcolor: 0xff0000> Stimuli nreps*isi must be < 80\% of iti</b>')
             return
         
@@ -151,13 +166,7 @@ class Controller(object):
         self.StimRecord['Params'] = self.CPars  # all selected parameters
         self.StimRecord['Trials'] = []  # store trial info in a list
         self.StimRecord['savedata'] = True  # flag to save data - set to false by search modes
-        if self.maingui.TT.available:
-            self.maingui.TT.open_tank()
-            lastblock = self.maingui.TT.find_last_block()
-            self.maingui.TT.close_tank()
-            self.StimRecord['FirstBlock'] = lastblock
-        else:
-            self.StimRecord['FirstBlock'] = 1
+        self.getCurrentBlock()
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.lastfreq = None
         self.trial_count = 0
@@ -222,6 +231,7 @@ class Controller(object):
             self.StimRecord['Trials'][-1]['Block'] = 1
         if protocol in ['Noise Search', 'Tone Search']:
             self.StimRecord['savedata'] = False
+            time.sleep(0.2)
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
@@ -301,6 +311,7 @@ class Controller(object):
         """
         Write the stimulus parameters to a disk file (ultimately in the current tank)
         """
+        print('first block storedata: ', self.StimRecord['FirstBlock'])
         alldat = [self.CPars, self.StimRecord]
         if self.maingui.TT.available:
             fh = open(os.path.join(self.maingui.TT.tank_directory,
@@ -436,7 +447,7 @@ class Controller(object):
             if stim in ['Noise RI']:
                 self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
                 self.total_trials = len(self.stim_vary['Intensity'])
-            wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
+            wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0.2,
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                             pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
