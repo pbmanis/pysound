@@ -19,6 +19,7 @@ class TDTTankInterface():
         else:
             self.available = False
         self.tank_directory = ''
+        self.lastblock = 0
         print('setup tank interface')
     
     def show_tank_path(self):
