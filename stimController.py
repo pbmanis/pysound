@@ -139,7 +139,7 @@ class Controller(object):
         
         sweepdur = nr*isi
         if sweepdur > 0.8*iti:
-            self.maingui.permStatusMessage('<b><fontcolor: 0xff0000> Stimuli nreps*isi must be < 80\% of iti</b>')
+            self.maingui.permStatusMessage.setText('<b><fontcolor: 0xff0000> Stimuli nreps*isi must be < 80\% of iti</b>')
             return
         
         self.runtime = 0
