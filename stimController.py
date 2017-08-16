@@ -234,7 +234,7 @@ class Controller(object):
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
-                reps=self.CPars['Stimulus']['nreps'],
+                reps=self.CPars['Stimulus']['Repetitions'],
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
             
         elif protocol in ['Tone RI', 'Noise RI']:
@@ -552,8 +552,9 @@ class Controller(object):
             import matplotlib.pyplot as mpl
             ax1 = mpl.subplot(211)
             mpl.plot(self.wavesound.time, self.wave)
-            mpl.subplot(212, sharex=ax1)
+            axspec = mpl.subplot(212, sharex=ax1)
             Pxx, freqs, bins, im = mpl.specgram(self.wave, NFFT=128, Fs=Fs, noverlap=64, pad_to=256)
+            #logspec.spectrogram(self.wave, Fs)
             mpl.show()
  #           specfreqs, spectime, Sxx = scipy.signal.spectrogram(self.wavesound.sound*self.Vscale, nperseg=int(0.01*Fs), fs=Fs)
  #           thr = 0. # 1e-8
