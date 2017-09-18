@@ -1,4 +1,4 @@
-from future import __print_function__
+from __future import __print_function__
 """
 Read frequency.cal file(s) from matlab abr program calibration.
 
@@ -63,7 +63,7 @@ class CalReader():
             self.filenames = dlg.selectedFiles()
             print('filenames: ', self.filenames)
             for f in self.filenames:
-                print str(f)
+                print('file: {:s}'.format(str(f)))
                 self.readfile(str(f))
     
     def readfile(self, filename):
