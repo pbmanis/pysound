@@ -372,7 +372,7 @@ class PyStim:
                 if elapsed_time > deadmantimer:
                     print('DeadmanExit')
                     break
-            self.RZ5D.SetSysMode(RZ5D_Standby)
+            self.RZ5D.SetSysMode(RZ5D_Standby)  # was (RZ5D_Standby)
             self.task.stop()
             self.setAttens(atten_left=120)
             #    self.present_stim(wavel, waver)
