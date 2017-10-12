@@ -351,8 +351,8 @@ class Controller(object):
             Set true to clip the waveform at +/- 10 V
         
         """
-        knownprotocols = ['Noise Search', 'Tone Search',
-                        'Tone RI', 'Noise RI', 'FRA',
+        knownprotocols = ['Noise Search', 'Tone Search', 'Click Search',
+                        'Tone RI', 'Single Tone', 'Noise RI', 'FRA',
                         'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep',
                         'NotchNoise', 'Noise Bands', 'One Tone', 'CMMR']
         if protocol not in  knownprotocols:
@@ -360,7 +360,7 @@ class Controller(object):
         if protocol.find('Tone') >=0 or protocol in ['FRA', 'RSS', 'One Tone']:
             print ('Tone')
             A = self.CPars['Voltage_Scales']['Tone_V']
-        if protocol.find('Clicks') >= 0:
+        if protocol in ['Clicks', 'Click Search']:
             A = self.CPars['Voltage_Scales']['Click_V']
         if protocol.find('Noise') >= 0:
             print('Noise')
@@ -400,7 +400,7 @@ class Controller(object):
         wave = None
         self.stim_vary = None
         self.total_trials = 1000
-        if stim in ['Clicks']:
+        if stim in ['Clicks', 'Click Search']:
            wave = sound.ClickTrain(rate=Fs, duration=self.CPars['Stimulus']['Duration'], dbspl=level,
                             click_duration=self.CPars['Clicks']['Duration'], 
                             click_starts=1e-3*np.arange(self.CPars['Stimulus']['Delay']*1000.,
@@ -408,7 +408,7 @@ class Controller(object):
                                     +self.CPars['Stimulus']['Delay'],
                                 self.CPars['Clicks']['Interval']))
 
-        elif stim in ['Tone RI', 'Tone Search']:
+        elif stim in ['Tone RI', 'Tone Search', 'Single Tone']:
             if freq is None:
                 freq = self.CPars['Stimulus']['Tone Frequency']*1000.
             if stim in ['Tone RI']:
@@ -523,7 +523,7 @@ class Controller(object):
                         spacing=self.CPars['RSS Params']['Spacing'],
                         octaves=self.CPars['RSS Params']['Octaves'])  
         
-        if stim in ['Noise Search', 'Tone Search']:
+        if stim in ['Noise Search', 'Tone Search', 'Click Search']:
             self.searchmode = True  # search mode just runs "forever", until a stop is hit
         else:
             self.searchmode = False
@@ -640,8 +640,8 @@ class BuildGui():
         # Define parameters that control aquisition and buttons...
         params = [
             {'name': 'Stimulus', 'type': 'group', 'children': [
-                {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search',
-                        'Tone RI', 'Noise RI', 'FRA', 'Clicks', 
+                {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search', 'Click Search',
+                        'Tone RI', 'Single Tone', 'Noise RI', 'FRA', 'Clicks', 
                         'CMMR', 'RSS', 'DMR', 'SSN',
                         'Tone SAM', 'Noise SAM', 'FM Sweep',
                         'Noise Bands'],
@@ -667,7 +667,7 @@ class BuildGui():
                     'tip': 'Randomize presentation order in all dimensions'},
                 {'name': 'Duration', 'type': 'float', 'value': 0.2, 'step': 0.05, 'limits': [0.001, 10],
                     'suffix': 's', 'default': 0.2, 'tip': 'Sound duration, in seconds'},
-                {'name': 'Delay', 'type': 'float', 'value': 0.01, 'step': 0.05, 'limits': [0.001, 10],
+                {'name': 'Delay', 'type': 'float', 'value': 0.1, 'step': 0.05, 'limits': [0.001, 10],
                     'suffix': 's', 'default': 0.2, 'tip': 'Sound delay, in seconds'},
              ]},
              {'name': 'Clicks', 'type': 'group', 'expanded': False, 'children': [
