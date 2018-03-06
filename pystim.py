@@ -197,6 +197,7 @@ class PyStim:
         self.RZ5DParams['SampleFrequency'] = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name']) # get device sample frequency
 
         self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
+        time.sleep(2.0)
 
         self.RZ5D.SetTargetVal(self.RZ5D_ParTags['TotalSweepCount'], 3)
 
@@ -233,16 +234,16 @@ class PyStim:
 
     def present_stim(self, waveforms, stimulus_period=1.0, reps=1, runmode=RZ5D_Run):
         sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
-        self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
+        self.RZ5D.SetSysMode(RZ5D_Preview) # Preview needed to set up parameters.... 
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
         self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
-        time.sleep(0.01) # just wait a few msec
+        time.sleep(2.0) # just wait a few msec #added two seconds here 20180306
         self.RZ5D.SetSysMode(runmode)
 
     def RZ5D_close(self):
         self.RZ5D.SetSysMode(RZ5D_Idle) # Idle
-        time.sleep(1)
+        time.sleep(1.0)
         self.RZ5D.CloseConnection();
 
     def getHardware(self):
@@ -372,7 +373,8 @@ class PyStim:
                 if elapsed_time > deadmantimer:
                     print('DeadmanExit')
                     break
-            self.RZ5D.SetSysMode(RZ5D_Standby)  # was (RZ5D_Standby)
+            self.RZ5D.SetSysMode(RZ5D_Preview)  # was (RZ5D_Standby)
+            time.sleep(2.0) #added a couple of seconds here 20180306
             self.task.stop()
             self.setAttens(atten_left=120)
             #    self.present_stim(wavel, waver)
@@ -554,6 +556,7 @@ if __name__ == '__main__':
     w = np.cos(2*np.pi*2000.*np.arange(0, 0.2, 1./ni_sf))
     p.setAttens(atten_left=30)
     p.present_stim(w)
+    print('here we are')
     time.sleep(2.0)
     p.RZ5D.SetSysMode(RZ5D_Standby)
     p.task.stop()

@@ -43,7 +43,7 @@ class Controller(object):
         self.img = img
         # set up a timer to control timing of stimuli
         self.TrialTimer=QtCore.QTimer() # get a Q timer
-        self.TrialTimer.timeout.connect(self.next_stimulus);
+        self.TrialTimer.timeout.connect(self.next_stimulus)
         self.maingui = maingui
         
         self.setAllParameters(ptreedata)
@@ -229,7 +229,7 @@ class Controller(object):
             self.StimRecord['Trials'][-1]['Block'] = lastblock
         else:
             self.StimRecord['Trials'][-1]['Block'] = 1
-        if protocol in ['Noise Search', 'Tone Search']:
+        if protocol in ['Noise Search', 'Tone Search','Click Search']: #TFR 20180128 added click_search here, so click searches are not recorded
             self.StimRecord['savedata'] = False
             time.sleep(0.2)
             self.PS.play_sound(self.wave, self.wave,
@@ -313,12 +313,15 @@ class Controller(object):
         """
         print('first block storedata: ', self.StimRecord['FirstBlock'])
         alldat = [self.CPars, self.StimRecord]
-        if self.maingui.TT.available:
-            fh = open(os.path.join(self.maingui.TT.tank_directory,
-                    'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['Stimulus']['Protocol'], 
-            self.StimRecord['FirstBlock'], self.StimRecord['Trials'][-1]['Block'])), 'w')
-            pickle.dump(alldat, fh)
-            fh.close()
+        print ('searchmode:', self.searchmode)
+        
+        if self.searchmode is False:   #TFR 20180227- only write the .p file is we're not in search mode
+            if self.maingui.TT.available:
+                fh = open(os.path.join(self.maingui.TT.tank_directory,
+                        'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['Stimulus']['Protocol'], 
+                self.StimRecord['FirstBlock'], self.StimRecord['Trials'][-1]['Block'])), 'w')
+                pickle.dump(alldat, fh)
+                fh.close()
         
     def quit(self):
         self.TrialTimer.stop()
@@ -354,7 +357,7 @@ class Controller(object):
         knownprotocols = ['Noise Search', 'Tone Search', 'Click Search',
                         'Tone RI', 'Single Tone', 'Noise RI', 'FRA',
                         'RSS', 'DMR', 'SSN', 'Tone SAM', 'Noise SAM', 'Clicks', 'FM Sweep',
-                        'NotchNoise', 'Noise Bands', 'One Tone', 'CMMR']
+                        'NotchNoise', 'Noise Bands', 'One Tone', 'CMMR','Noise Train']
         if protocol not in  knownprotocols:
             raise ValueError('Protocol not in list we can map for scaling the voltage in map_voltage')
         if protocol.find('Tone') >=0 or protocol in ['FRA', 'RSS', 'One Tone']:
@@ -400,11 +403,12 @@ class Controller(object):
         wave = None
         self.stim_vary = None
         self.total_trials = 1000
+        print( 'stim: ', stim)
         if stim in ['Clicks', 'Click Search']:
            wave = sound.ClickTrain(rate=Fs, duration=self.CPars['Stimulus']['Duration'], dbspl=level,
                             click_duration=self.CPars['Clicks']['Duration'], 
                             click_starts=1e-3*np.arange(self.CPars['Stimulus']['Delay']*1000.,
-                                self.CPars['Clicks']['Interval']*self.CPars['Clicks']['Number']
+                                self.CPars['Clicks']['Interval']*(self.CPars['Clicks']['Number']+1)
                                     +self.CPars['Stimulus']['Delay'],
                                 self.CPars['Clicks']['Interval']))
 
@@ -442,16 +446,40 @@ class Controller(object):
                                 start=self.CPars['Stimulus']['Delay'], ramp=self.CPars['FMSweep']['Ramp Type'],
                                 freqs=[self.CPars['FMSweep']['Freq Start']*1000.,
                                 self.CPars['FMSweep']['Freq End']*1000.])
-
-        elif stim in ['Noise RI', 'Noise Search']:
-            if stim in ['Noise RI']:
-                self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
-                self.total_trials = len(self.stim_vary['Intensity'])
+        #TFR, changing Noise Search to possibly present a train of noise bursts 20180129
+        elif stim in ['Noise RI']:
+            # if stim in ['Noise RI']:
+            self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
+            self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0.2,
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                             pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
-                            fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)           
+                            fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
+        elif stim in ['Noise Search']:
+            if self.CPars['Noise Train']['Number']>1:
+                howmany = (self.CPars['Noise Train']['Interval']+self.CPars['Noise Train']['Duration'])*(self.CPars['Noise Train']['Number']-1)+self.CPars['Stimulus']['Delay']*1000
+                wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0,
+                            f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
+                            pip_duration=self.CPars['Noise Train']['Duration'],
+                            pip_start=1e-3*np.arange(self.CPars['Stimulus']['Delay']*1000.,howmany,self.CPars['Noise Train']['Interval']),
+                            ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
+            else:
+                wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0,
+                            f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
+                            pip_duration=self.CPars['Noise Train']['Duration'],
+                            pip_start=np.arange(self.CPars['Stimulus']['Delay'],1),
+                            ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
+            
+        # elif stim in ['Noise RI', 'Noise Search']:
+        #     if stim in ['Noise RI']:
+        #         self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
+        #         self.total_trials = len(self.stim_vary['Intensity'])
+        #     wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0.2,
+        #                     f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
+        #                     pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+        #                     ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
+        #                     fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)           
         elif stim in ['Noise SAM']:
             wave = sound.SAMNoise(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
@@ -644,7 +672,7 @@ class BuildGui():
                         'Tone RI', 'Single Tone', 'Noise RI', 'FRA', 'Clicks', 
                         'CMMR', 'RSS', 'DMR', 'SSN',
                         'Tone SAM', 'Noise SAM', 'FM Sweep',
-                        'Noise Bands'],
+                        'Noise Bands','Noise Train'],
                         'value': 'Noise Search'},
                 {'name': 'Tone Frequency', 'type': 'float', 'value': 4.0, 'step': 1.0, 'limits': [0.5, 99.0],
                     'suffix': 'kHz', 'default': 4.0},
@@ -724,7 +752,15 @@ class BuildGui():
                  {'name': 'CF', 'type': 'float', 'value': 5.0, 'limits': [0.1, 40],
                  'suffix': 'kHz', 'default': 5.0},
              ]},
-                    
+            #TFR added this parameter to generate a noise train 20180129
+            {'name': 'Noise Train', 'type': 'group', 'expanded': False, 'children': [
+                  {'name': 'Interval', 'type': 'float', 'value': 50., 'step': 5.0, 'limits': [1., 1000.0],
+                    'suffix': 'ms', 'default': 50.0},
+                  {'name': 'Number', 'type': 'int', 'value': 1, 'step': 1, 'limits': [1, 200.0],
+                    'default': 4},
+                  {'name': 'Duration', 'type': 'float', 'value': 0.2, 'step': 10e-2, 
+                      'limits': [0.1,1], 'suffix': 's', 'default': 0.2},
+             ]},       
 
             {'name': 'File From Disk', 'type': 'str', 'value': 'test.wav', 'default': 'test.wav'},
 
