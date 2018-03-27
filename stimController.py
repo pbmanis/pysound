@@ -231,7 +231,8 @@ class Controller(object):
             self.StimRecord['Trials'][-1]['Block'] = 1
         if protocol in ['Noise Search', 'Tone Search','Click Search']: #TFR 20180128 added click_search here, so click searches are not recorded
             self.StimRecord['savedata'] = False
-            time.sleep(0.2)
+            # time.sleep(2.0)
+            time.sleep(0.5)
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
@@ -239,6 +240,8 @@ class Controller(object):
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
             
         elif protocol in ['One Tone']:
+            # time.sleep(2.0)
+            time.sleep(0.5)
             spl = self.attn
             self.StimRecord['savedata'] = False
             self.PS.play_sound(self.wave, self.wave,
@@ -248,6 +251,8 @@ class Controller(object):
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
             
         elif protocol in ['Tone RI', 'Noise RI']:
+            # time.sleep(2.0)
+            time.sleep(0.5)
             spl = self.stim_vary['Intensity'][self.trial_count]
             freq = self.CPars['Stimulus']['Tone Frequency']
             # print('spl:', spl)
@@ -258,6 +263,8 @@ class Controller(object):
                 reps=self.CPars['Stimulus']['Repetitions'], attns=self.convert_spl_attn(spl))
 
         elif protocol in ['FRA']:
+            # time.sleep(2.0)
+            time.sleep(0.5)
             spl = self.stim_vary['Intensity'][self.trial_count]
             freq = self.stim_vary['Frequency'][self.trial_count]
             if self.lastfreq is None or freq != self.lastfreq:  # determine if we need to calculate the waveform
@@ -275,6 +282,8 @@ class Controller(object):
                 attns=self.convert_spl_attn(spl))
 
         else:
+            # time.sleep(2.0)
+            time.sleep(0.5)
             spl = self.CPars['Stimulus']['Attenuator']
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
@@ -287,7 +296,7 @@ class Controller(object):
         self.trial_count = self.trial_count + 1
         if self.trial_count >= self.total_trials:
             self.stop_run()  # end last trial without waiting for the rest
-        time.sleep(0.05)   # allow other events
+        time.sleep(2.0)   # allow other events
         
     def stop_run(self):
         """

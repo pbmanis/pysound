@@ -197,7 +197,8 @@ class PyStim:
         self.RZ5DParams['SampleFrequency'] = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name']) # get device sample frequency
 
         self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters.... 
-        time.sleep(2.0)
+            # time.sleep(2.0)
+        time.sleep(0.5)
 
         self.RZ5D.SetTargetVal(self.RZ5D_ParTags['TotalSweepCount'], 3)
 
@@ -234,7 +235,7 @@ class PyStim:
 
     def present_stim(self, waveforms, stimulus_period=1.0, reps=1, runmode=RZ5D_Run):
         sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
-        self.RZ5D.SetSysMode(RZ5D_Preview) # Preview needed to set up parameters.... 
+        # self.RZ5D.SetSysMode(RZ5D_Preview) # Preview needed to set up parameters.... 
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
         self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
         self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
@@ -366,14 +367,14 @@ class PyStim:
             while self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']) == 0:  # wait for zSwDone to be set
                 cs = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['CurrentSweep'])
                 if cs > swcount:
-                   # print('   Sweep = %d' % cs)
+                    print('   Sweep = %d' % cs)
                     swcount = swcount + 1
                 time.sleep(0.1)
                 elapsed_time = time.time() - start_time  # elapsed time is in seconds
                 if elapsed_time > deadmantimer:
                     print('DeadmanExit')
                     break
-            self.RZ5D.SetSysMode(RZ5D_Preview)  # was (RZ5D_Standby)
+            self.RZ5D.SetSysMode(RZ5D_Standby)  # was (RZ5D_Standby)
             time.sleep(2.0) #added a couple of seconds here 20180306
             self.task.stop()
             self.setAttens(atten_left=120)
