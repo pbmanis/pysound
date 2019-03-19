@@ -7,9 +7,7 @@ record signals.
 
 Output hardware is either an National Instruments DAC card or a system sound card
 If the NI DAC is available, TDT system 3 hardware is assumed as well for the
-attenuators (PA5) and an RP2.1 to input the startle response.
-Second channel of RP2.1 is collected as well. Use this for a microphone input
-to monitor sound in the chamber.
+attenuators (PA5) and an RP2.1.
 
 If the system sound card is used, stimuli are generated. This is used only for testing.
 
@@ -30,11 +28,16 @@ August, 2017
 TDT manual: 
 Sweep Control
 To use the sweep control circuit constructs the following names are required:
-zSwPeriod: The period of the sweep duration. This is set in OpenWorkbench and can not be modified during block acquisition. If it is necessary to change this value during the experiment, an *asynchronous next sweep control circuit* construct should be used. See Asynchronous Next Sweep Control, page 324 for more information.
+zSwPeriod: The period of the sweep duration. This is set in OpenWorkbench
+and can not be modified during block acquisition.
+If it is necessary to change this value during the experiment, an
+*asynchronous next sweep control circuit* construct should be used
+ See Asynchronous Next Sweep Control, page 324 for more information.
 317
 OpenEx User's Guide
 318
-zSwCount: The maximum number of sweeps before the signal is terminated. If this requires manual or external control, the value should be set to -1 through the OpenWorkbench protocol.
+zSwCount: The maximum number of sweeps before the signal is terminated.
+If this requires manual or external control, the value should be set to -1 through the OpenWorkbench protocol.
 
 """
 import os
@@ -101,7 +104,7 @@ class PyStim:
         else:
             if 'NIDAQ' in self.required_hardware and self.setup_nidaq(device_info):
                 self.hardware.append('NIDAQ')
-            if 'RP21' in self.required_hardware and self.setup_RP21('c:\pystartle\startle.rco'):
+            if 'RP21' in self.required_hardware and self.setup_RP21('c:\\TDT\\OpenEx\\MyProjects\\Tetrode\\RCOCircuits\\tone_search.rcx'):
                 self.hardware.append('RP21')
             if 'PA5' in self.required_hardware and self.setup_PA5():
                 self.hardware.append('PA5')
@@ -155,19 +158,19 @@ class PyStim:
         self.RP21 = win32com.client.Dispatch("RPco.x") # connect to RP2.1
         a = self.RP21.ConnectRP2("USB", 1)
         if a > 0 and self.debugFlag:
-            print ("pysounds.init: RP2.1 Connect is good: %d" % (a))
+            print ("pystim.setup_RP21: RP2.1 Connect is good: %d" % (a))
         else:
-            print ("pysounds.init: Failed to connect to PA5 Attenuator 1")
+            print ("pystim.setup_RP21: Failed to connect to RP2.1")
             return False
         self.RP21.ClearCOF()
-        self.samp_cof_flag = 2 # 2 is for 24.4 kHz
+        self.samp_cof_flag = 5 # 2 is for 24.4 kHz
         self.samp_flist = [6103.5256125, 12210.703125, 24414.0625, 48828.125, 
         97656.25, 195312.5]
         if self.samp_cof_flag > 5:
             self.samp_cof_flag = 5
         a = self.RP21.LoadCOFsf(rcofile, self.samp_cof_flag)
         if a > 0:
-            print ("pysounds.init: Connected to TDT RP2.1 and %s is loaded" % rcofile)
+            print ("pystim.setup_RP21: File %s loaded\n      and sample rate set to %f" % (rcofile, self.samp_fllist[self.camp_cof_flag]))
         else:
             print ("pysounds.init: Error loading RCO file %s, error = %d" % (rcofile, a))
             return False

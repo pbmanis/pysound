@@ -37,7 +37,7 @@ pp = pprint.PrettyPrinter(indent=4)
 
 class Controller(object):
     def __init__(self, ptreedata, plots, img, maingui):
-        self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])
+        self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])# , 'RP21'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
