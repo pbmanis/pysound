@@ -838,11 +838,6 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
     rng = np.random.RandomState(seed)
     pin = np.zeros(t.size)
     npips = len(pip_start)
-<<<<<<< HEAD
-    print 'npips printing here', npips
-=======
-    print 'npips', npips
->>>>>>> 570b241904a16ab10106328110bf1d9e90fead29
     print 'pip_start', pip_start
     td = int(np.floor(pip_dur * Fs))
     for n in range(npips):
@@ -852,10 +847,9 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
         if t0+td > t.size:
             raise ValueError('Noise train duration exceeds waveform duration')
         pip_pts = int(pip_dur * Fs) + 1
-<<<<<<< HEAD
+
         print('pip_pts: ',pip_pts)
-=======
->>>>>>> 570b241904a16ab10106328110bf1d9e90fead29
+
         #generate a pip
         if dBSPL is not None:
             pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
