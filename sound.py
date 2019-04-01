@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 """
 Tools for generating auditory stimuli.
@@ -174,7 +174,7 @@ class TonePip(Sound):
     def __init__(self, **kwds):
         reqdWords = ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_start', 'ramp_duration']
         for k in reqdWords:
-            if k not in kwds.keys():
+            if k not in list(kwds.keys()):
                 raise TypeError("Missing required argument '%s'" % k)
         if kwds['pip_duration'] < kwds['ramp_duration'] * 2:
             raise ValueError("pip_duration must be greater than (2 * ramp_duration).")
@@ -552,7 +552,7 @@ class ComodulationMasking(Sound):
             for i, fs in enumerate(flankfs):
                 flanktone[i] = piptone(self.time, o['ramp_duration'], o['rate'], flankfs[i],
                                o['dbspl'], o['pip_duration'], o['pip_start'])
-        print('type ,phase: ', o['flanking_type'], o['flanking_phase'])
+        print(('type ,phase: ', o['flanking_type'], o['flanking_phase']))
         if o['flanking_type'] == 'NBnoise':
             raise ValueError('Flanking type nbnoise not yet implemented')
         if o['flanking_phase'] == 'Comodulated':
@@ -562,9 +562,9 @@ class ComodulationMasking(Sound):
         if o['flanking_phase'] == 'Random':
                 ph = 2.0*np.pi*np.arange(-o['flanking_bands'], o['flanking_bands']+1, 1)/o['flanking_bands']
                 raise ValueError('Random flanking phases not implemented')
-        print('flanking phases: ', ph)
-        print (len(flanktone))
-        print('flanking freqs: ', flankfs)
+        print(('flanking phases: ', ph))
+        print((len(flanktone)))
+        print(('flanking freqs: ', flankfs))
         for i, fs in enumerate(flankfs):
             flanktone[i] = sinusoidal_modulation(self.time, flanktone[i],
                     o['pip_start'], o['fmod'], o['dmod'], ph[i])
@@ -848,7 +848,7 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
         if t0+td > t.size:
             raise ValueError('Noise train duration exceeds waveform duration')
         pip_pts = int(pip_dur * Fs) + 1
-        print('pip_pts: ',pip_pts)
+        print(('pip_pts: ',pip_pts))
         #generate a pip
         if dBSPL is not None:
             pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
@@ -1100,9 +1100,9 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
     # TODO: implement start...correct for sampling rate issues.
     # Signature:
     # scipy.signal.chirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True)[source]
-    print(freqs[0], freqs[1])
+    print((freqs[0], freqs[1]))
     print(duration)
-    print(np.max(t))
+    print((np.max(t)))
     sw = scipy.signal.chirp(t, freqs[0], duration, freqs[1],
         method=ramp, phi=0, vertex_zero=True)
     if dBSPL is not None:

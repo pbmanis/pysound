@@ -62,7 +62,7 @@ class Pysounds:
 
     def setup_soundcard(self):
         if self.debugFlag:
-            print "pysounds.init: OS or hardware only supports standard sound card"
+            print("pysounds.init: OS or hardware only supports standard sound card")
         self.hardware.append('pyaudio')
         self.out_sampleFreq = 44100.0
         self.in_sampleFreq = 44100.0
@@ -74,20 +74,20 @@ class Pysounds:
         import win32com.client
         
         if self.debugFlag:
-            print "pysounds.init: Attempt to Assert num devs > 0:",
+            print("pysounds.init: Attempt to Assert num devs > 0:", end=' ')
         if len(nidaq.NIDAQ.listDevices()) <=  0:
             return False
             
         device = nidaq.NIDAQ.getDevice(devicename)
         if self.debugFlag:
-            print "pysounds.init: found nidaq devices."
-            print "devices: %s" % nidaq.NIDAQ.listDevices()
-            print "getDevice:",
-            print "  ", devicename
+            print("pysounds.init: found nidaq devices.")
+            print("devices: %s" % nidaq.NIDAQ.listDevices())
+            print("getDevice:", end=' ')
+            print("  ", devicename)
         
-            print "\nAnalog Output Channels:",
+            print("\nAnalog Output Channels:", end=' ')
         # print "  AI: ", dev0.listAIChannels()
-            print " AO: ", device.listAOChannels() # check output only
+            print(" AO: ", device.listAOChannels()) # check output only
         return True
         
     def setup_PA5(self, usbdevices=[1,2]):
@@ -96,9 +96,9 @@ class Pysounds:
         for devnum in usbdevices:
             a = PA5.ConnectPA5("USB", usbdevices[devnum])
             if a > 0 and self.debugFlag:
-                print "pysounds.init: Connected to PA5 Attenuator 1"
+                print("pysounds.init: Connected to PA5 Attenuator 1")
             else:
-                print "pysounds.init: Failed to connect to PA5 Attenuator 1"
+                print("pysounds.init: Failed to connect to PA5 Attenuator 1")
                 return False
             PA5.SetAtten(120.0)
         return True
@@ -107,9 +107,9 @@ class Pysounds:
             RP21 = win32com.client.Dispatch("RPco.x") # connect to RP2.1
             a = RP21.ConnectRP2("USB", 1)
             if a > 0 and self.debugFlag:
-                print "pysounds.init: RP2.1 Connect is good: %d" % (a)
+                print("pysounds.init: RP2.1 Connect is good: %d" % (a))
             else:
-                print "pysounds.init: Failed to connect to PA5 Attenuator 1"
+                print("pysounds.init: Failed to connect to PA5 Attenuator 1")
                 return False
             RP21.ClearCOF()
             self.samp_cof_flag = 2 # 2 is for 24.4 kHz
@@ -119,9 +119,9 @@ class Pysounds:
                 self.samp_cof_flag = 5
             a = RP21.LoadCOFsf("C:\pyStartle\startle2.rco", self.samp_cof_flag)
             if a > 0:
-                print "pysounds.init: Connected to TDT RP2.1 and startle2.rco is loaded"
+                print("pysounds.init: Connected to TDT RP2.1 and startle2.rco is loaded")
             else:
-                print "pysounds.init: Error loading startle2.rco?, error = %d" % (a)
+                print("pysounds.init: Error loading startle2.rco?, error = %d" % (a))
                 return False
             self.hardware = 'nidaq'
             self.out_sampleFreq = self.samp_flist[self.samp_cof_flag]
@@ -171,24 +171,24 @@ class Pysounds:
             for i in range(0, len(freq)):
                 signal = signal + fil*amp*np.sin(2.0*np.pi*freq[i]*jpts/Fs)
                 if self.debugFlag:
-                    print "Generated Tone at %7.1fHz" % (freq[i])
+                    print("Generated Tone at %7.1fHz" % (freq[i]))
                 
         if mode == 'bbnoise':
             signal = signal + fil*amp*np.random.normal(0,1,siglen)
             if self.debugFlag:
-                print "BroadBand Noise " 
+                print("BroadBand Noise ") 
             
         if mode == 'bpnoise':
             tsignal = fil*amp*np.random.normal(0,1,siglen)
             # use freq[0] and freq[1] to set bandpass on the noise
             if self.debugFlag:
-                print "freqs: HP: %6.1f    LP: %6.1f" % (freq[0], freq[1])
+                print("freqs: HP: %6.1f    LP: %6.1f" % (freq[0], freq[1]))
             sf2 = samplefreq*2.0 # nyquist limit
             if freq[0] > sf2 or freq[1] > sf2:
-                print 'freqs: ', freq
-                print 'nyquist limit: ', sf2
-                print 'sample frequ: ', samplefreq
-                print 'coefficients not bounded [0, 1] for w... '
+                print('freqs: ', freq)
+                print('nyquist limit: ', sf2)
+                print('sample frequ: ', samplefreq)
+                print('coefficients not bounded [0, 1] for w... ')
                 return np.array(signal)
             wp = [float(freq[0])/sf2, float(freq[1])/sf2]
             ws = [0.75*float(freq[0])/sf2, 1.25*float(freq[1])/sf2]
@@ -197,7 +197,7 @@ class Pysounds:
                     gstop=60.0,
                     ftype="ellip")
             if self.debugFlag:
-                print "BandPass Noise %7.1f-%7.1f" % (freq[0], freq[1])
+                print("BandPass Noise %7.1f-%7.1f" % (freq[0], freq[1]))
             signal=scipy.signal.lfilter(filter_b, filter_a, tsignal)
         
         if mode == 'notchnoise':
@@ -213,11 +213,11 @@ class Pysounds:
         w = np.zeros(np.ceil(ipi*(np-1)/clock)+jd+siglen)
         sign = np.ones(np)
         if alternate == True:
-            sign[range(1,np,2)] = -1
+            sign[list(range(1,np,2))] = -1
         id = int(floor(ipi/clock))
         for i in range(0, np): # for each pulse in the waveform
             j0 = jd + i*id # compute start time  
-            w[range(j0,j0+siglen)] = sign[i]*signal
+            w[list(range(j0,j0+siglen))] = sign[i]*signal
         
         w = w*self.dbconvert(spl = level, chan = channel) # aftera all the shaping ane scaling, we convert to generate a signal of w dB
         if playSignal == True:
@@ -247,10 +247,10 @@ class Pysounds:
         
         pts = np.arange(jd,jd+nf)
         fil = np.zeros(je)
-        fil[range(jd,jd+nf)] = np.sin(2*np.pi*fo*pts*samplefreq)**2 # filter
-        fil[range(jd+nf,je-nf)] = 1        
-        pts = range(je-nf,je)
-        kpts = range(jd+nf,jd,-1)
+        fil[list(range(jd,jd+nf))] = np.sin(2*np.pi*fo*pts*samplefreq)**2 # filter
+        fil[list(range(jd+nf,je-nf))] = 1        
+        pts = list(range(je-nf,je))
+        kpts = list(range(jd+nf,jd,-1))
         fil[pts] = fil[kpts]
         return(fil)
 
@@ -281,7 +281,7 @@ class Pysounds:
         zeroref = REF_ES_volt/(10**(ref/20.0));
         sf = zeroref*10**(spl/20.0); # actually, the voltage needed to get spl out...
         if self.debugFlag:
-            print "pysounds.dbconvert: scale = %f for %f dB" % (sf, spl)
+            print("pysounds.dbconvert: scale = %f for %f dB" % (sf, spl))
         return (sf) # return a scale factor to multiply by a waveform normalized to 1 
 
 ################################################################################
@@ -310,7 +310,7 @@ class Pysounds:
             CHANNELS = 2
             RATE = samplefreq
             if self.debugFlag:
-                print "pysounds.play_sound: samplefreq: %f" % (RATE)
+                print("pysounds.play_sound: samplefreq: %f" % (RATE))
             self.stream = self.audio.open(format = FORMAT,
                             channels = CHANNELS,
                             rate = int(RATE),
@@ -321,7 +321,7 @@ class Pysounds:
             #print self.stream
             wave = np.zeros(2*len(wavel))
             if len(wavel) != len(waver):
-                print "pysounds.play_sound: waves not matched in length: %d vs. %d (L,R)" % (len(wavel), len(waver))
+                print("pysounds.play_sound: waves not matched in length: %d vs. %d (L,R)" % (len(wavel), len(waver)))
                 return
             (waver, clipr) = self.clip(waver, 20.0)
             (wavel, clipl) = self.clip(wavel, 20.0)
@@ -361,13 +361,13 @@ class Pysounds:
                 # now take in some acquisition...
                 a = RP21.ClearCOF()
                 if a <= 0:
-                    print "pysounds.playSound: Unable to clear RP2.1"
+                    print("pysounds.playSound: Unable to clear RP2.1")
                     return
                 a = RP21.LoadCOFsf("C:\pyStartle\startle2.rco", self.samp_cof_flag)
                 if a > 0 and self.debugFlag:
-                    print "pysounds.playSound: Connected to TDT RP2.1 and startle2.rco is loaded"
+                    print("pysounds.playSound: Connected to TDT RP2.1 and startle2.rco is loaded")
                 else:
-                    print "pysounds.playSound: Error loading startle2.rco?, error = %d" % (a)
+                    print("pysounds.playSound: Error loading startle2.rco?, error = %d" % (a))
                     hwerr = 1
                     return
                 self.trueFreq = RP21.GetSFreq()
@@ -427,8 +427,8 @@ class Pysounds:
 # clip data to max value (+/-) to avoid problems with daqs
     def clip(self, data, maxval):
         if self.debugFlag:
-            print "pysounds.clip: max(data) = %f, %f and maxval = %f" % (
-                max(data), min(data), maxval)
+            print("pysounds.clip: max(data) = %f, %f and maxval = %f" % (
+                max(data), min(data), maxval))
         clip = 0
         u = np.where(data >= maxval)
         ul = list(np.transpose(u).flat)
@@ -436,7 +436,7 @@ class Pysounds:
             data[ul] = maxval
             clip = 1 # set a flag in case we want to know
             if self.debugFlag:
-                print "pysounds.clip: clipping %d positive points" % (len(ul))
+                print("pysounds.clip: clipping %d positive points" % (len(ul)))
         minval = -maxval
         v = np.where(data <= minval)
         vl = list(np.transpose(v).flat)
@@ -444,10 +444,10 @@ class Pysounds:
             data[vl] = minval
             clip = 1
             if self.debugFlag:
-                print "pysounds.clip: clipping %d negative points" % (len(vl))
+                print("pysounds.clip: clipping %d negative points" % (len(vl)))
         if self.debugFlag:
-            print "pysounds.clip: clipped max(data) = %f, %f and maxval = %f" % (
-                    np.max(data), np.min(data), maxval)
+            print("pysounds.clip: clipped max(data) = %f, %f and maxval = %f" % (
+                    np.max(data), np.min(data), maxval))
         return (data, clip)
         
 ################################################################################

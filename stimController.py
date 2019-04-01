@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 """
 Stimulus controller
 Generates waveforms, controls stimulus presentation
@@ -108,10 +108,10 @@ class Controller(object):
         #self.showParameters()
 
     def showParameters(self):
-        for k in self.CPars.keys():
+        for k in list(self.CPars.keys()):
             print('Group: %s' % k)
             if isinstance(self.CPars[k], dict):
-                for d in self.CPars[k].keys():
+                for d in list(self.CPars[k].keys()):
                     print('   %s = %s' % (d, str(self.CPars[k][d])))
                 #pp.pprint(self.CPars)
 
@@ -425,7 +425,7 @@ class Controller(object):
             if freq is None:
                 freq = self.CPars['Stimulus']['Tone Frequency']*1000.
             if stim in ['Tone RI']:
-                print (self.CPars['Stimulus'].keys())
+                print (list(self.CPars['Stimulus'].keys()))
                 self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
                 self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.TonePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
@@ -1007,7 +1007,7 @@ class BuildGui():
             self.lastPoint.setSize(7)
             self.lastPoint = points.ptsClicked[0]
         
-        stimpars = self.ptreedata.param('Stimulus').items.keys()[0]  # force to One Tone mode
+        stimpars = list(self.ptreedata.param('Stimulus').items.keys())[0]  # force to One Tone mode
         stimpars.param.names['Protocol'].setValue('One Tone')
 #        stimpars.param.emitStateChanged()  # trigger
 

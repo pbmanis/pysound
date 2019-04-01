@@ -62,7 +62,8 @@ RZ5D_Run = 3
 if os.name == 'nt':
     import nidaq
     import win32com.client
-    
+
+
 class PyStim:
     
     def __init__(self, hdw=['Soundcard'], devicename='dev1'):
@@ -108,7 +109,6 @@ class PyStim:
                 self.hardware.append('RP21')
             if 'PA5' in self.required_hardware and self.setup_PA5():
                 self.hardware.append('PA5')
-            if 'RZ5D' in self.required_hardware and self.setup_RZ5D():
                 self.hardware.append('RZ5D')
 
     def setup_soundcard(self):
@@ -120,7 +120,6 @@ class PyStim:
         
     def setup_nidaq(self, device_info):
         # get the drivers and the activeX control (win32com)
-
         if len(nidaq.NIDAQ.listDevices()) <=  0:
             if self.requireNIPA5:
                 raise IOError('NIDAQ requirement requested, but device not found')
@@ -134,7 +133,7 @@ class PyStim:
     
     def show_nidaq(self):
         print ("pysounds.init: found nidaq devices.")
-        print ("devices: %s" % nidaq.NIDAQ.listDevices())
+        print ("devices: %s" % nidaq.nidaq.NIDAQ.listDevices())
         print( "getDevice: ", self.NIDevice)
         print ("\nAnalog Output Channels: %d" %  self.NIDevice.listAOChannels())
         
@@ -437,7 +436,7 @@ class PyStim:
     def prepare_NIDAQ(self, wavel, waver = None):
         samplefreq = self.out_sampleFreq
         self.task = self.NIDevice.createTask()  # creat a task for the NI 6731 board.
-        self.task.CreateAOVoltageChan("/%s/ao0" % self.NIDevicename, "ao0", -10., 10.,
+        self.task.CreateAOVoltageChan(b"/%s/AO0" % self.NIDevicename, b"AO0", -10., 10.,
                                       nidaq.Val_Volts, None)
       #  self.task.CreateAOVoltageChan("/%s/ao1" % self.NIDevicename, "ao1", -10., 10.,
       #                                nidaq.Val_Volts, None) # use 2 channels
@@ -452,7 +451,7 @@ class PyStim:
                                    nidaq.Val_FiniteSamps, len(wavel))
         
         # set up triggering for the NI (hardware trigger)
-        self.task.CfgDigEdgeStartTrig('PFI0',  nidaq.Val_Rising)
+        self.task.CfgDigEdgeStartTrig(b'PFI0',  nidaq.Val_Rising)
         self.task.SetStartTrigType(nidaq.Val_DigEdge)
 
         # Need to set up count of trigger events, but not seeing it in NIDAQmx.h
