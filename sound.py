@@ -838,12 +838,12 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
     rng = np.random.RandomState(seed)
     pin = np.zeros(t.size)
     npips = len(pip_start)
-    print 'npips printing here', npips
-    print 'pip_start', pip_start
+    # print 'npips printing here', npips
+    # print 'pip_start', pip_start
     td = int(np.floor(pip_dur * Fs))
     for n in range(npips):
         t0s = pip_start[n]  #time for the nth pip
-        print 't0s', t0s
+        # print 't0s', t0s
         t0 = int(np.floor(t0s*Fs)) #index locus for the pip
         if t0+td > t.size:
             raise ValueError('Noise train duration exceeds waveform duration')
@@ -1100,9 +1100,9 @@ def fmsweep(t, start, duration, freqs, ramp, dBSPL):
     # TODO: implement start...correct for sampling rate issues.
     # Signature:
     # scipy.signal.chirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True)[source]
-    print freqs[0], freqs[1]
-    print duration
-    print np.max(t)
+    print(freqs[0], freqs[1])
+    print(duration)
+    print(np.max(t))
     sw = scipy.signal.chirp(t, freqs[0], duration, freqs[1],
         method=ramp, phi=0, vertex_zero=True)
     if dBSPL is not None:

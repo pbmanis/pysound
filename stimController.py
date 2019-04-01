@@ -22,7 +22,7 @@ import time
 import pickle
 import scipy.io.wavfile as wav
 from collections import OrderedDict
-import ConfigParser
+from backports import configparser
 import pyqtgraph as pg
 from PyQt4 import QtGui, QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
@@ -655,7 +655,8 @@ class BuildGui():
         self.configfilename = 'config.ini'
         if not os.path.isfile(self.configfilename):
             # create a configuration file
-            parser = ConfigParser.SafeConfigParser()
+            parser=configparser.SafeConfigParser()
+            # parser = ConfigParser.SafeConfigParser()
             # initialize parser
             parser.add_section('TDTTanks')
             parser.set('TDTTanks', 'dir', '')
@@ -663,7 +664,8 @@ class BuildGui():
             parser.write(fh)
             fh.close()
         else:
-            parser = ConfigParser.SafeConfigParser()
+            parser=configparser.SafeConfigParser()
+            # parser = ConfigParser.SafeConfigParser()
             parser.read('config.ini')
             self.TDTTankDirectory = parser.get('TDTTanks', 'dir')
             print('tankd dir: ', self.TDTTankDirectory)
