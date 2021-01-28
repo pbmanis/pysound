@@ -1,8 +1,8 @@
 __author__ = "Tessa Ropp, Paul B. Manis"
 __version__ = "0.50"
 
-import pysounds
-import sound
+import pysound.pysounds
+import pysound.sound
 
 
 import platform
