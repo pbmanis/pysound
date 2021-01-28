@@ -4,28 +4,36 @@ Test sounds and plot waveforms.
 This script tests the sound waveform generator for a variety of sounds
 
 """
+import argparse
+import sys
+import wave  # pythom module
+from collections import OrderedDict
+
 import numpy as np
 import pyqtgraph as pg
-import sound
-from collections import OrderedDict
 import scipy.signal
-import pystim
-import sys
-import matplotlib.pyplot as mpl
-import matplotlib.colors as colors
+from matplotlib import colors as colors
+from matplotlib import pyplot as mpl
+
+from pysound import pystim as pystim
+from pysound import sound as sound
 
 # define available waveforms:
 
-stims = OrderedDict([('pip', (0, sound.TonePip)),
-                         ('pipmod', (0, sound.SAMTone)),
-                         ('noise', (0, sound.NoisePip)),
-                         ('noisemod', (0, sound.SAMNoise)),
-                         ('clicks', (0, sound.ClickTrain)),
-                         ('fmsweep', (0, sound.FMSweep)),
-                         ('dmr', (0, sound.DynamicRipple)),
-                         ('ssn', (0, sound.SpeechShapedNoise)),
-                         ('rss', (0, sound.RandomSpectrumShape)),
-                     ])
+stims = OrderedDict(
+    [
+        ("pip", (0, sound.TonePip)),
+        ("pipmod", (0, sound.SAMTone)),
+        ("noise", (0, sound.NoisePip)),
+        ("noisemod", (0, sound.SAMNoise)),
+        ("clicks", (0, sound.ClickTrain)),
+        ("fmsweep", (0, sound.FMSweep)),
+        ("dmr", (0, sound.DynamicRipple)),
+        ("ssn", (0, sound.SpeechShapedNoise)),
+        ("rss", (0, sound.RandomSpectrumShape)),
+    ]
+)
+
 
 def play():
     plots = False
@@ -34,20 +42,20 @@ def play():
     if len(sys.argv) >= 2:
         stimarg = sys.argv[1]
     if len(sys.argv) >= 3:
-        if sys.argv[2] == 'plot':
+        if sys.argv[2] == "plot":
             plots = True
 
     PS = pystim.PyStim()
-    
+
     cf = 2e3
     Fs = PS.out_sampleFreq  # sample frequency
-    level = 80.
+    level = 80.0
     seed = 34978
-    fmod = 20.
-    dmod = 20.
+    fmod = 20.0
+    dmod = 20.0
 
-# reduce to 2 plots only, not whole mess.
-    
+    # reduce to 2 plots only, not whole mess.
+
     # if plots:
     #     # waveforms
     #     win = pg.GraphicsWindow()
@@ -115,62 +123,109 @@ def play():
     #                      ('rss', (rsswins, sound.RandomSpectrumShape)),
     #
     #                  ])
-    if stimarg == 'all':
+    if stimarg == "all":
         stimlist = stims
     else:
-        if stimarg in stims.keys():
+        if stimarg in list(stims.keys()):
             stimlist = [stimarg]
         else:
-            raise ValueError('Stimulus %s not in known stimulus types' % stimarg)
+            raise ValueError("Stimulus %s not in known stimulus types" % stimarg)
     for stim in stimlist:
-        print stim
-        if stim in ['clicks']:
-            wave = stims[stim][1](rate=Fs, duration=1.0, dbspl=level,
-                             click_duration=1e-4, click_starts=1e-3*np.linspace(10, 500, 10))
-        elif stim in ['fmsweep']:
-            wave = stims[stim][1](rate=Fs, duration=0.5, dbspl=level,
-                                start=0., ramp='linear', freqs=[16000, 200])
-        elif stim in ['pip', 'pipmod', 'noise', 'noisemod']:
-            wave = stims[stim][1](rate=Fs, duration=2.0, f0=cf, dbspl=level, 
-                             pip_duration=1.8, pip_start=[10e-3], ramp_duration=2.5e-3,
-                             fmod=fmod, dmod=dmod, seed=seed)
-        elif stim in ['dmr']:
-            wave = stims[stim][1](rate=Fs, duration=10.0)
-        elif stim in ['ssn']: # speech shaped noise
-            wave = stims[stim][1](rate=Fs, duration=0)
-        elif stim in ['rss']:
-            wave = stims[stim][1](rate=Fs, duration=0.5, dbspl=level,
-                ramp='linear', ramp_duration=1e-2, f0=4000, pip_duration=0.4,
-                pip_start=[50e-3], amp_group_size=8, amp_sd = 12, spacing = 64, octaves=3)   
-        
-        print ('Playing %s' % stim)
-        PS.play_sound(wave.sound, wave.sound, Fs)
+        print(stim)
+        if stim in ["clicks"]:
+            soundwave = stims[stim][1](
+                rate=Fs,
+                duration=1.0,
+                dbspl=level,
+                click_duration=1e-4,
+                click_starts=1e-3 * np.linspace(10, 500, 10),
+            )
+        elif stim in ["fmsweep"]:
+            soundwave = stims[stim][1](
+                rate=Fs,
+                duration=0.5,
+                dbspl=level,
+                start=0.0,
+                ramp="linear",
+                freqs=[16000, 200],
+            )
+        elif stim in ["pip", "pipmod", "noise", "noisemod"]:
+            soundwave = stims[stim][1](
+                rate=Fs,
+                duration=2.0,
+                f0=cf,
+                dbspl=level,
+                pip_duration=1.8,
+                pip_start=[10e-3],
+                ramp_duration=2.5e-3,
+                fmod=fmod,
+                dmod=dmod,
+                seed=seed,
+            )
+        elif stim in ["dmr"]:
+            soundwave = stims[stim][1](rate=Fs, duration=10.0)
+        elif stim in ["ssn"]:  # speech shaped noise
+            waveform = None
+            with wave.open("wav/english.wav", "rb") as wf:
+                waveform = wf.read()
+                sr = wf.getframerate()
+            if waveform is not None:
+                soundwave = stims[stim][1](
+                    rate=Fs, duration=0, waveform=waveform, samplingrate=sr
+                )
+        elif stim in ["rss"]:
+            soundwave = stims[stim][1](
+                rate=Fs,
+                duration=0.5,
+                dbspl=level,
+                ramp="linear",
+                ramp_duration=1e-2,
+                f0=4000,
+                pip_duration=0.4,
+                pip_start=[50e-3],
+                amp_group_size=8,
+                amp_sd=12,
+                spacing=64,
+                octaves=3,
+            )
+
+        print(("Playing %s" % stim))
+        PS.play_sound(soundwave.sound, soundwave.sound, Fs)
 
         if plots:  # make one graph for each waveform requested
             fig, ax = mpl.subplots(3, 1, figsize=(8, 10))
-            fig.suptitle('Waveform and Spectrum')
+            fig.suptitle("Waveform and Spectrum")
             ax = ax.ravel()
             # print wave.time.shape
             # print wave.sound.shape
             ax[0].plot(wave.time, wave.sound)
-            f, Pxx_spec = scipy.signal.periodogram(wave.sound, Fs) #, window='flattop', nperseg=8192,
-                               # noverlap=512, scaling='spectrum')
+            f, Pxx_spec = scipy.signal.periodogram(
+                wave.sound, Fs
+            )  # , window='flattop', nperseg=8192,
+            # noverlap=512, scaling='spectrum')
             ax[1].semilogy(f[1:], np.sqrt(Pxx_spec)[1:])
-           # ax[1].get_shared_x_axes().join(ax[1], ax[2])
+            # ax[1].get_shared_x_axes().join(ax[1], ax[2])
             ax[1].set_xticklabels([])
             nfft = 256
-            specfreqs, spectime, Sxx = scipy.signal.spectrogram(wave.sound, nperseg=int(0.01*Fs), fs=Fs)
+            specfreqs, spectime, Sxx = scipy.signal.spectrogram(
+                wave.sound, nperseg=int(0.01 * Fs), fs=Fs
+            )
             thr = 1e-8
             Sxx[Sxx <= thr] = thr
-            pcm = ax[2].pcolor(spectime, specfreqs, Sxx,
+            pcm = ax[2].pcolor(
+                spectime,
+                specfreqs,
+                Sxx,
                 norm=colors.LogNorm(vmin=Sxx.min(), vmax=Sxx.max()),
-                cmap='PuBu_r')
-            fig.colorbar(pcm, ax=ax[2], extend='max')
-            #Pxx, freqs, bins, im = mpl.specgram(wave.sound, NFFT=nfft, Fs=Fs, noverlap=nfft/4)
+                cmap="PuBu_r",
+            )
+            fig.colorbar(pcm, ax=ax[2], extend="max")
+            # Pxx, freqs, bins, im = mpl.specgram(wave.sound, NFFT=nfft, Fs=Fs, noverlap=nfft/4)
             mpl.show()
 
     # if plots and sys.flags.interactive == 0:
     #      pg.QtGui.QApplication.exec_()
-         
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     play()

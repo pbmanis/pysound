@@ -30,7 +30,8 @@ import pystim
 import Utility
 import sound
 import pprint
-import TDTTankInterface as TDT
+# import TDTTankInterface as TDT
+import tdt #necessary for interacting with the tanks in Synapse
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -45,7 +46,8 @@ class Controller(object):
         self.TrialTimer=QtCore.QTimer() # get a Q timer
         self.TrialTimer.timeout.connect(self.next_stimulus)
         self.maingui = maingui
-        
+        self.ProtocolNumber = 0
+        self.TDTinfo = tdt.SynapseAPI()
         self.setAllParameters(ptreedata)
 
         # Special for clickable map
@@ -115,15 +117,15 @@ class Controller(object):
                     print('   %s = %s' % (d, str(self.CPars[k][d])))
                 #pp.pprint(self.CPars)
 
-    def getCurrentBlock(self):
-        if self.maingui.TT.available:
-            self.maingui.TT.open_tank()
-            lastblock = self.maingui.TT.find_last_block()
-            print ('Current block: ', lastblock)
-            self.StimRecord['FirstBlock'] = lastblock
-            self.maingui.TT.close_tank()
-        else:
-            self.StimRecord['FirstBlock'] = 1
+    # def getCurrentBlock(self):
+    #     if self.maingui.TT.available:
+    #         self.maingui.TT.open_tank()
+    #         lastblock = self.maingui.TT.find_last_block()
+    #         print ('Current block: ', lastblock)
+    #         self.StimRecord['FirstBlock'] = lastblock
+    #         self.maingui.TT.close_tank()
+    #     else:
+    #         self.StimRecord['FirstBlock'] = 1
 
 
     def start_run(self):
@@ -166,7 +168,7 @@ class Controller(object):
         self.StimRecord['Params'] = self.CPars  # all selected parameters
         self.StimRecord['Trials'] = []  # store trial info in a list
         self.StimRecord['savedata'] = True  # flag to save data - set to false by search modes
-        self.getCurrentBlock()
+        # self.getCurrentBlock()
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.lastfreq = None
         self.trial_count = 0
@@ -222,13 +224,13 @@ class Controller(object):
         freq = self.CPars['Stimulus']['Tone Frequency']
         protocol = self.CPars['Stimulus']['Protocol']
         self.StimRecord['Trials'].append({'Time': '{:%Y.%m.%d %H:%M:%S}'.format(datetime.datetime.now())})  # start time for each trial
-        if self.maingui.TT.available:
-            self.maingui.TT.open_tank()
-            lastblock = self.maingui.TT.find_last_block()
-            self.maingui.TT.close_tank()
-            self.StimRecord['Trials'][-1]['Block'] = lastblock
-        else:
-            self.StimRecord['Trials'][-1]['Block'] = 1
+        # if self.maingui.TT.available:
+        #     self.maingui.TT.open_tank()
+        #     lastblock = self.maingui.TT.find_last_block()
+        #     self.maingui.TT.close_tank()
+        #     self.StimRecord['Trials'][-1]['Block'] = lastblock
+        # else:
+        #     self.StimRecord['Trials'][-1]['Block'] = 1
         if protocol in ['Noise Search', 'Tone Search','Click Search']: #TFR 20180128 added click_search here, so click searches are not recorded
             self.StimRecord['savedata'] = False
             # time.sleep(2.0)
@@ -243,7 +245,9 @@ class Controller(object):
             # time.sleep(2.0)
             time.sleep(0.5)
             spl = self.attn
+            print('SOUND LEVEL: ', spl)
             self.StimRecord['savedata'] = False
+            print(self.StimRecord['savedata'])
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
@@ -260,7 +264,7 @@ class Controller(object):
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
-                reps=self.CPars['Stimulus']['Repetitions'], attns=self.convert_spl_attn(spl))
+                reps=self.CPars['Stimulus']['Repetitions'], protocol=protocol, attns=self.convert_spl_attn(spl))
 
         elif protocol in ['FRA']:
             # time.sleep(2.0)
@@ -278,7 +282,7 @@ class Controller(object):
             print('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl))
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
-                isi=self.CPars['Stimulus']['Interstimulus Interval'], reps=self.CPars['Stimulus']['Repetitions'],
+                isi=self.CPars['Stimulus']['Interstimulus Interval'], reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol, 
                 attns=self.convert_spl_attn(spl))
 
         else:
@@ -288,7 +292,7 @@ class Controller(object):
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
-                reps=self.CPars['Stimulus']['Repetitions'], attns=self.convert_spl_attn(spl))
+                reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol,  attns=self.convert_spl_attn(spl))
         
         self.StimRecord['Trials'][-1]['protocol'] = protocol
         self.StimRecord['Trials'][-1]['spl'] = spl
@@ -314,23 +318,38 @@ class Controller(object):
         self.maingui.label_status.setText('Stopped')
         self.trial_active = False
         self.stop_hit = True
-        self.storeData()
+        if self.stop_hit == True and self.searchmode == False:
+            self.storeData()
+        else: #reset the attenuator and get ready for the next stimulus.
+            self.PS.HwOff()
+            return
+
         
     def storeData(self):
         """
         Write the stimulus parameters to a disk file (ultimately in the current tank)
         """
-        print('first block storedata: ', self.StimRecord['FirstBlock'])
+        # print('first block storedata: ', self.StimRecord['FirstBlock'])
         alldat = [self.CPars, self.StimRecord]
         print ('searchmode:', self.searchmode)
         
         if self.searchmode is False:   #TFR 20180227- only write the .p file is we're not in search mode
-            if self.maingui.TT.available:
-                fh = open(os.path.join(self.maingui.TT.tank_directory,
-                        'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['Stimulus']['Protocol'], 
-                self.StimRecord['FirstBlock'], self.StimRecord['Trials'][-1]['Block'])), 'w')
-                pickle.dump(alldat, fh)
-                fh.close()
+            #desired sequence of events: determine the tank, write the stimulus info into the Tank/Block?
+            # TankLocus= self.TDTinfo.getCurrentTank()# if self.maingui.TT.available:
+            # # TankLocus.replace("\\",'\')
+            # if TankLocus!='':
+            # print('protocol?: ',self.StimRecord['Trials'][0]['protocol'])
+            # return
+            # print('Stimulus info: ',self.BlockString)
+            self.BlockString= self.StimRecord['Trials'][0]['protocol']
+            self.BlockString.replace('  ','')
+            filename=os.path.join(self.PS.TankName,'%s.p' % self.BlockString)
+            fh = open(filename,'wb')
+            # fh = open(os.path.join(self.maingui.TT.tank_directory,
+            #         'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['Stimulus']['Protocol'], 
+            # self.StimRecord['FirstBlock'], self.StimRecord['Trials'][-1]['Block'])), 'w')
+            pickle.dump(alldat, fh)
+            fh.close()
         
     def quit(self):
         self.TrialTimer.stop()
@@ -560,13 +579,18 @@ class Controller(object):
                         spacing=self.CPars['RSS Params']['Spacing'],
                         octaves=self.CPars['RSS Params']['Octaves'])  
         
-        if stim in ['Noise Search', 'Tone Search', 'Click Search']:
+        if stim in ['Noise Search', 'Tone Search', 'Click Search','One Tone']:
             self.searchmode = True  # search mode just runs "forever", until a stop is hit
-        else:
+        else: #set up the tank to record from and track the presentation no
             self.searchmode = False
+            # self.BlockString=stim.replace(" ","")+ProtocolNumber)
+            # print('Just made BlockString: ',self.BlockString)
+            # self.TDTinfo.setCurrentBlock(self.BlockString)
+            # self.ProtocolNumber = self.ProtocolNumber + 1
 
         if wave is not None:
             self.wavesound = wave
+            print('wave generated')
             self.wave = self.map_voltage(stim, self.wavesound.sound, clip=True) # force computation and rescale and clip the waveform
 
     def show_wave(self):
@@ -640,9 +664,10 @@ class BuildGui():
         self.mainwin.setWindowTitle('Stim Controller')
         self.mainwin.setGeometry( 100 , 100 , 1024 , 800)
         self.spectimage = False
-        self.TDTTankDirectory = ''
-        self.TT = TDT.TDTTankInterface()
-        print('self.TT.available: ', self.TT.available)
+        # self.TDTTankDirectory = ''
+        
+        # self.TT = TDT.TDTTankInterface()
+        # print('self.TT.available: ', self.TT.available)
         self.statusBar = QtGui.QStatusBar()
         self.mainwin.setStatusBar(self.statusBar)
         self.statusMessage = QtGui.QLabel('')
@@ -652,29 +677,30 @@ class BuildGui():
         
 
         # retrieve recent path
-        self.configfilename = 'config.ini'
-        if not os.path.isfile(self.configfilename):
-            # create a configuration file
-            parser=configparser.SafeConfigParser()
-            # parser = ConfigParser.SafeConfigParser()
-            # initialize parser
-            parser.add_section('TDTTanks')
-            parser.set('TDTTanks', 'dir', '')
-            fh = open(self.configfilename, 'w')
-            parser.write(fh)
-            fh.close()
-        else:
-            parser=configparser.SafeConfigParser()
-            # parser = ConfigParser.SafeConfigParser()
-            parser.read('config.ini')
-            self.TDTTankDirectory = parser.get('TDTTanks', 'dir')
-            print('tankd dir: ', self.TDTTankDirectory)
-            self.TT.tank_directory = self.TDTTankDirectory
-            if len(self.TDTTankDirectory) > 0:
-                self.TT.open_tank()
-                lastblock = self.TT.find_last_block()
-                self.TT.close_tank()
-                self.TT.show_tank_path()
+        # self.configfilename = 'config.ini'
+        # if not os.path.isfile(self.configfilename):
+        #     # create a configuration file
+        #     parser=configparser.SafeConfigParser()
+        #     # parser = ConfigParser.SafeConfigParser()
+        #     # initialize parser
+        #     parser.add_section('TDTTanks')
+        #     parser.set('TDTTanks', 'dir', '')
+        #     fh = open(self.configfilename, 'w')
+        #     parser.write(fh)
+        #     fh.close()
+        # else:
+        #     parser=configparser.SafeConfigParser()
+        #     # parser = ConfigParser.SafeConfigParser()
+        #     parser.read('config.ini')
+        #     self.TDTTankDirectory = parser.get('TDTTanks', 'dir')
+        #     print('tankd dir: ', self.TDTTankDirectory)
+        # self.TDTinfo.tank_directory = self.TDTinfo.getCurrentTank()
+        # self.TDTinfo.blockstatus = self.TDTinfo.setCurrentBlock('test')
+            # if len(self.TDTTankDirectory) > 0:
+            #     self.TT.open_tank()
+            #     lastblock = self.TT.find_last_block()
+            #     self.TT.close_tank()
+            #     self.TT.show_tank_path()
 
         # Define parameters that control aquisition and buttons...
         params = [
@@ -944,7 +970,7 @@ class BuildGui():
         self.recentpath = ''
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
-        self.btn_tdt.clicked.connect(self.getTDTTank) # self.TT.set_tank_path)
+        # self.btn_tdt.clicked.connect(print('TDT Tank: ', self.TDTinfo.getCurrentTank())) # self.TT.set_tank_path)
      #    self.ButtonEvents = QtCore.QTimer() # get a Q timer
      #    self.btn_stop.clicked.connect(timer, SIGNAL(timeout()), this, SLOT(processOneThing()));
      # timer->start();
@@ -957,39 +983,34 @@ class BuildGui():
         self.btn_stop.clicked.connect(self.controller.stop_run)
         self.btn_quit.clicked.connect(self.controller.quit)
         self.spect_check.clicked.connect(self.speccheck)
-        self.updateStatusMessage()
+        # self.updateStatusMessage()
 
     def speccheck(self):
         self.spectimage = self.spect_check.isChecked()
 
-    def getTDTTank(self, dirname=None):
-        filedialog = QtGui.QFileDialog()
-        filedialog.setFileMode(QtGui.QFileDialog.Directory)
-        self.TT.tank_directory = str(filedialog.getExistingDirectory(None, "Select Tank Directory", self.recentpath,
-                                    QtGui.QFileDialog.ShowDirsOnly))
-        self.recentpath = self.TT.tank_directory
-#        print('Tank dir selected: ', self.TT.tank_directory)
-        self.setTankIni(self.TT.tank_directory)
-        self.TT.open_tank()
-        lastblock = self.TT.find_last_block()
-        self.TT.close_tank()
-        self.TT.show_tank_path()
-        self.updateStatusMessage()
+    # def getTDTTank(self, dirname=None):
+    #     filedialog = QtGui.QFileDialog()
+    #     filedialog.setFileMode(QtGui.QFileDialog.Directory)
 
-    def setTankIni(self, newtankname):
-        parser = ConfigParser.SafeConfigParser()
-        parser.read('config.ini')
-        parser.set('TDTTanks', 'dir', newtankname)
-        fh = open(self.configfilename, 'w')
-        parser.write(fh)
-        fh.close()
+#         self.TT.tank_directory = str(filedialog.getExistingDirectory(None, "Select Tank Directory", self.recentpath,
+#                                     QtGui.QFileDialog.ShowDirsOnly))
+#         self.recentpath = self.TT.tank_directory
+# #        print('Tank dir selected: ', self.TT.tank_directory)
+#         self.setTankIni(self.TT.tank_directory)
+#         self.TT.open_tank()
+#         lastblock = self.TT.find_last_block()
+#         self.TT.close_tank()
+#         self.TT.show_tank_path()
+#         self.updateStatusMessage()
 
-    def updateStatusMessage(self):
-        if self.TT.available is False:
-            message = ('No TDT Tank')
-        else:
-            message = ('Tank: {0:s}  CurrentBlock: {1:d}'.format(self.TT.tank_directory, self.TT.lastblock))
-        self.statusMessage.setText(message)
+
+
+    # def updateStatusMessage(self):
+    #     if self.TT.available is False:
+    #         message = ('No TDT Tank')
+    #     else:
+    #         message = ('Tank: {0:s}  CurrentBlock: {1:d}'.format(self.TT.tank_directory, self.TT.lastblock))
+    #     self.statusMessage.setText(message)
         
     def getClickedLocation(self, points):
         # print (dir(points))
@@ -1010,11 +1031,14 @@ class BuildGui():
         stimpars = list(self.ptreedata.param('Stimulus').items.keys())[0]  # force to One Tone mode
         stimpars.param.names['Protocol'].setValue('One Tone')
 #        stimpars.param.emitStateChanged()  # trigger
+        print('One Tone for me!')
 
         self.controller.protocol = stimpars.param.names['Protocol'].value()
         self.controller.tone_frequency = self.mousePoint.x()
         self.controller.attn = self.mousePoint.y()
-       # self.controller.prepare_run()
+        self.searchmode = True
+        self.controller.CPars['Stimulus']['Protocol']='One Tone'
+        self.controller.prepare_run(freq=self.controller.tone_frequency,level=self.controller.attn)
         self.controller.start_run()
     
 if __name__ == '__main__':

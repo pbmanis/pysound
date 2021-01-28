@@ -92,6 +92,7 @@ class _NIDAQ:
     cArgs = []
     for i in range(0, len(args)):
       arg = args[i]
+      # print('ARG: ',arg)
       if type(args[i]) in [float, int, int, bool] and argSig[i][2] == 0:
         #print func, i, argSig[i][0], argSig[i][1], type(arg)
         arg = getattr(ctypes, argSig[i][1])(arg)

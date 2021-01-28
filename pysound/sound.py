@@ -34,6 +34,8 @@ Notes:
 import numpy as np
 import scipy
 import scipy.signal
+import pysound.DMR as DMR
+
 
 
 def create(type, **kwds):
@@ -583,7 +585,6 @@ class DynamicRipple(Sound):
                 raise TypeError("Missing required argument '%s'" % k)
         # if kwds['pip_duration'] < kwds['ramp_duration'] * 2:
         #     raise ValueError("pip_duration must be greater than (2 * ramp_duration).")
-        import DMR
         self.dmr = DMR.DMR()
         Sound.__init__(self, **kwds)
     
@@ -969,7 +970,7 @@ def sinusoidal_modulation(t, basestim, tstart, fmod, dmod, phaseshift):
     
     """
     
-    env = (1.0 + (dmod/100.0) * np.sin((2.0*np.pi*fmod*(t-tstart)) + phaseshift - np.pi/2)) # envelope...
+    env = 1.0 + (dmod/100.0) * np.sin((2.0*np.pi*fmod*(t-tstart)) + phaseshift - np.pi/2) # envelope...
     return basestim*env
 
 
