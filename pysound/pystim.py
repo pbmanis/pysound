@@ -111,7 +111,7 @@ class PyStim:
             User defined dictionary of parameters to pass to devices
         
         """
-        if os.name is not "nt":  # If not on a Windows system, just set up soundcard
+        if opsys in ["Darwin", "Linux"]:  # If not on a Windows system, just set up soundcard
             self.setup_soundcard()
             self.hardware.append("Soundcard")
             self.out_samplefreq = 44100
