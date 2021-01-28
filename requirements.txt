@@ -1,0 +1,28 @@
+# pysounds requirements
+
+# development utilities and general tools
+black==19.10b0
+Pint==0.14
+isort==5.0.2
+mypy==0.782
+jupyterlab
+pyperclip
+pytest==4.5.0
+tk
+
+# Specific requirements
+Cython==0.29.17
+llvmlite==0.32.1  # required for numba version to avoid "TypeError: create_target_machine() got an unexpected keyword 
+
+matplotlib==3.3.3
+nose==1.3.7
+numpy==1.19.5
+psutil==5.6.7
+pyparsing==2.4.0
+resampy==0.2.1
+scipy==1.6.0
+pyaudio
+pyqt5==5.15.2
+pyqt5-sip==12.8.1
+pyqtgraph>=0.10
+toml==0.10.0

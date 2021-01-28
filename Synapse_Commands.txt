@@ -1,0 +1,56 @@
+--- help for SynapseAPI ---
+
+    Available SynapseAPI methods:
+    --------------------------------------------------------
+    Legend:
+    b = bool, s = string, c = cell, i = int, f = float,
+    d = double, t = struct
+    --------------------------------------------------------
+    return value    function call
+    --------------------------------------------------------
+    bSuccess        appendExperimentMemo(sExperiment, sMemo)
+    bSuccess        appendSubjectMemo(sSubject, sMemo)
+    bSuccess        appendUserMemo(sUser, sMemo)
+    bSuccess        createSubject(varargin)
+    bSuccess        createTank(sTankPath)
+    sBlock          getCurrentBlock()
+    sExperiment     getCurrentExperiment()
+    sSubject        getCurrentSubject()
+    sTank           getCurrentTank()
+    sUser           getCurrentUser()
+    cNotes          getExperimentMemos(varargin)
+    cGizmos         getGizmoNames()
+    cGizmoInfo      getGizmoInfo(sGizmoName)
+    sGizmoParent    getGizmoParent(sGizmoName)
+    cBlocks         getKnownBlocks()
+    cExperiments    getKnownExperiments()
+    cSubjects       getKnownSubjects()
+    cTanks          getKnownTanks()
+    cUsers          getKnownUsers()
+    iMode           getMode()
+    sMode           getModeStr()
+    tParameterInfo  getParameterInfo(sGizmo, sParameter)
+    sParameters     getParameterNames(sGizmo)
+    dValue          getParameterSize(sGizmo, sParameter)
+    dValue          getParameterValue(sGizmo, sParameter)
+    fValues         getParameterValues(varargin)
+    sMode           getPersistMode()
+    cModes          getPersistModes()
+    tSamplingRates  getSamplingRates()
+    cNotes          getSubjectMemos(varargin)
+    tStatus         getSystemStatus()
+    cNotes          getUserMemos(varargin)
+    bSuccess        issueTrigger(iTriggerId)
+    bSuccess        setCurrentBlock(sBlock)
+    bSuccess        setCurrentExperiment(sExperiment)
+    bSuccess        setCurrentSubject(sSubject)
+    bSuccess        setCurrentTank(sTank)
+    bSuccess        setCurrentUser(varargin)
+    bSuccess        setMode(iNewMode)
+    bSuccess        setModeStr(sNewMode)
+    bSuccess        setParameterValue(sGizmo, sParameter, dValue)
+    bSuccess        setParameterValues(varargin)
+    bSuccess        setPersistMode(sMode)
+
+
+    https://pypi.org/project/tdt/
