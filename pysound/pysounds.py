@@ -26,7 +26,6 @@ import numpy as np
 import pyaudio
 import scipy
 import scipy.signal
-from matplotlib import pyplot as plt
 
 osname = platform.system()
 if osname == "Windows":
@@ -53,7 +52,7 @@ class Pysounds:
         self.find_hardware()
 
     def find_hardware(self):
-        if osname == "Windows":  # If not on a Windows system, just set up soundcard
+        if osname != "Windows":  # If not on a Windows system, just set up soundcard
             self.setup_soundcard()
             self.hardware.append("Soundcard")
         else:
@@ -470,7 +469,7 @@ class Pysounds:
                 self.ch2 = self.RP21.ReadTagV("Data_out2", 0, Ndata)
                 # ch2 = ch2 - mean(ch2[1:int(Ndata/20)]) # baseline: first 5% of trace
                 self.ch1 = self.RP21.ReadTagV("Data_out1", 0, Ndata)
-               self.RP21.Halt()
+                self.RP21.Halt()
 
     def retrieveInputs(self):
         return (self.ch1, self.ch2)
@@ -485,7 +484,7 @@ class Pysounds:
             self.task.stop()
             self.setAttens()
             if "RP21" in self.hardware:
-               self.RP21.Halt()
+                self.RP21.Halt()
 
     # clip data to max value (+/-) to avoid problems with daqs
     def clip(self, data, maxval):
@@ -544,3 +543,7 @@ class Pysounds:
             "@" + "f" * size * channels, input_str_buffer
         )
         return np.array(input_float_buffer)
+
+if __name__ == "__main__":
+    P = Pysounds()
+    print(P.hardware)
