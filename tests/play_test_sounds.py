@@ -5,6 +5,7 @@ This script tests the sound waveform generator for a variety of sounds
 
 """
 import argparse
+from pathlib import Path
 import sys
 import wave  # pythom module
 from collections import OrderedDict
@@ -166,12 +167,18 @@ def play():
             soundwave = stims[stim][1](rate=Fs, duration=10.0)
         elif stim in ["ssn"]:  # speech shaped noise
             waveform = None
-            with wave.open("wav/english.wav", "rb") as wf:
-                waveform = wf.read()
+            wavfile = Path("wav/testsentence.wav")
+            with wave.open(str(wavfile)) as wf:
+                nframes = wf.getnframes()
+                waveform = np.array(wf.readframes(nframes))
                 sr = wf.getframerate()
+                nchan = wf.getnchannels()
+            Fs = sr
             if waveform is not None:
+                audio16 = np.frombuffer(waveform, dtype=np.int16)
+                audio = audio16.astype(np.float32)/4096
                 soundwave = stims[stim][1](
-                    rate=Fs, duration=0, waveform=waveform, samplingrate=sr
+                    rate=sr, duration=0, waveform=audio, samplingrate=sr
                 )
         elif stim in ["rss"]:
             soundwave = stims[stim][1](
@@ -190,6 +197,7 @@ def play():
             )
 
         print(("Playing %s" % stim))
+        print(np.max(soundwave.sound))
         PS.play_sound(soundwave.sound, soundwave.sound, Fs)
 
         if plots:  # make one graph for each waveform requested
