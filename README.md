@@ -1,9 +1,33 @@
+pysounds
+========
+
+A set of modules that provide auditory stimulus generation, including hardware control.
+
+It includes:
+
+sound.py
+--------
+A collection of routines that generate sound waveforms. Uses DMR.py for dynamic ripple, 
+
+pystim.py
+---------
+A module that interacts with some hardware (Rp2.1, PA5, RZ5D, nidaq, and soundcards) to play
+generated sounds.
+
+pysounds.py
+-----------
+An early verion module that only knows about the RP2.1, PA5, and nidaq. 
+
+calreader.py
+------------
+Read and display calibration files generated in matlab ABR program.
+
 stimController
-==============
+--------------
 
-This software suite provides the following:
+This module suite provides the following in conjunction with TDT hardware:
 
-1. Generation of waveforms for acoustic stimulation, including tones, clicks, noises, bandpass and notched noise, modulated tones and noises, RSS, DMR, and comodulated masking stimuli.
+1. Generation of waveforms for acoustic stimulation, including tones, clicks, noises, bandpass and notched noise, modulated tones and noises, RSS, DMR, and comodulated masking stimuli (not all are currently implemented).
 
 2. The suite uses a graphical window to show the waveforms and long-term spectra, as well as an option to display the frequency-time spectra for the stimuli. 
 
