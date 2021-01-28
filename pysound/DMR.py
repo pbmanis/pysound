@@ -128,7 +128,7 @@ class DMR(object):
         # Vector containing carrier frequencies
         self.vCarrierFreq = (
             self.nBaseFreq
-            * 2.0 ** np.linspace(0, self.nOctaves, self.nCarriersOct * self.nOctaves).T
+            * 2.0 ** np.linspace(0, self.nOctaves, int(self.nCarriersOct * self.nOctaves)).T
         )
 
         # Use an uniform distribution for frequency modulation
