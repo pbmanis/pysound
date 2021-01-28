@@ -22,13 +22,13 @@ import time
 import pickle
 import scipy.io.wavfile as wav
 from collections import OrderedDict
-from backports import configparser
+# from backports import configparser
 import pyqtgraph as pg
-from PyQt4 import QtGui, QtCore
+from PyQt5 import QtGui, QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
-from . import pystim
-from . import Utility
-from . import sound
+from pysound import pystim
+from pysound import Utility
+from pysound import sound
 import pprint
 # import TDTTankInterface as TDT
 import tdt #necessary for interacting with the tanks in Synapse
@@ -681,7 +681,7 @@ class BuildGui():
         # if not os.path.isfile(self.configfilename):
         #     # create a configuration file
         #     parser=configparser.SafeConfigParser()
-        #     # parser = ConfigParser.SafeConfigParser()
+        #     # parser = f.SafeConfigParser()
         #     # initialize parser
         #     parser.add_section('TDTTanks')
         #     parser.set('TDTTanks', 'dir', '')
@@ -1040,8 +1040,9 @@ class BuildGui():
         self.controller.CPars['Stimulus']['Protocol']='One Tone'
         self.controller.prepare_run(freq=self.controller.tone_frequency,level=self.controller.attn)
         self.controller.start_run()
-    
-if __name__ == '__main__':
+
+
+def main():
     gui = BuildGui()
     
     ## Start Qt event loop unless running in interactive mode.
@@ -1049,3 +1050,7 @@ if __name__ == '__main__':
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
     gui.controller.quit()
+    
+     
+if __name__ == '__main__':
+    main()

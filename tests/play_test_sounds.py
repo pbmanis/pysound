@@ -233,7 +233,8 @@ def play():
 
     # if plots and sys.flags.interactive == 0:
     #      pg.QtGui.QApplication.exec_()
-
+def main():
+    play()
 
 if __name__ == "__main__":
-    play()
+    main()

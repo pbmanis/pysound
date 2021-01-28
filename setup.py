@@ -24,7 +24,8 @@ setup(name='pysound',
       packages=find_packages(include=['pysound*']),
       entry_points={
           'console_scripts': [
-               'testsound=tests.play_sound_test',
+               'testsound=tests.play_test_sounds:main',
+               "SC=pysound.stimController:main",
                ],
 
       },
