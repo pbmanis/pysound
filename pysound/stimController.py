@@ -26,9 +26,9 @@ from backports import configparser
 import pyqtgraph as pg
 from PyQt4 import QtGui, QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
-import pystim
-import Utility
-import sound
+from . import pystim
+from . import Utility
+from . import sound
 import pprint
 # import TDTTankInterface as TDT
 import tdt #necessary for interacting with the tanks in Synapse
@@ -111,10 +111,10 @@ class Controller(object):
 
     def showParameters(self):
         for k in list(self.CPars.keys()):
-            print('Group: %s' % k)
+            print(('Group: %s' % k))
             if isinstance(self.CPars[k], dict):
                 for d in list(self.CPars[k].keys()):
-                    print('   %s = %s' % (d, str(self.CPars[k][d])))
+                    print(('   %s = %s' % (d, str(self.CPars[k][d]))))
                 #pp.pprint(self.CPars)
 
     # def getCurrentBlock(self):
@@ -245,9 +245,9 @@ class Controller(object):
             # time.sleep(2.0)
             time.sleep(0.5)
             spl = self.attn
-            print('SOUND LEVEL: ', spl)
+            print(('SOUND LEVEL: ', spl))
             self.StimRecord['savedata'] = False
-            print(self.StimRecord['savedata'])
+            print((self.StimRecord['savedata']))
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
@@ -279,7 +279,7 @@ class Controller(object):
                             pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
                 self.wave = self.map_voltage(protocol, wave.sound, clip=True)
-            print('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl))
+            print(('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl)))
             self.PS.play_sound(self.wave, self.wave,
                 samplefreq=self.PS.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'], reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol, 
@@ -331,7 +331,7 @@ class Controller(object):
         """
         # print('first block storedata: ', self.StimRecord['FirstBlock'])
         alldat = [self.CPars, self.StimRecord]
-        print ('searchmode:', self.searchmode)
+        print(('searchmode:', self.searchmode))
         
         if self.searchmode is False:   #TFR 20180227- only write the .p file is we're not in search mode
             #desired sequence of events: determine the tank, write the stimulus info into the Tank/Block?
@@ -431,7 +431,7 @@ class Controller(object):
         wave = None
         self.stim_vary = None
         self.total_trials = 1000
-        print( 'stim: ', stim)
+        print(( 'stim: ', stim))
         if stim in ['Clicks', 'Click Search']:
            wave = sound.ClickTrain(rate=Fs, duration=self.CPars['Stimulus']['Duration'], dbspl=level,
                             click_duration=self.CPars['Clicks']['Duration'], 
@@ -444,7 +444,7 @@ class Controller(object):
             if freq is None:
                 freq = self.CPars['Stimulus']['Tone Frequency']*1000.
             if stim in ['Tone RI']:
-                print (list(self.CPars['Stimulus'].keys()))
+                print((list(self.CPars['Stimulus'].keys())))
                 self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
                 self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.TonePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
@@ -619,7 +619,7 @@ class Controller(object):
         self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
         #self.plots['LongTermSpec'].setLogMode(x=True, y=False)
 
-        print (self.maingui.spectimage)
+        print((self.maingui.spectimage))
         if self.maingui.spectimage:  # enable spectrogram plot
             import matplotlib.pyplot as mpl
             ax1 = mpl.subplot(211)
@@ -1018,7 +1018,7 @@ class BuildGui():
         # print('mouse click: ', points.mouseClickEvent(points.event()))
         # print('mouse doubleclick: ', points.mouseDoubleClickEvent(points.event()))
         self.mousePoint = points.ptsClicked[0].viewPos()
-        print('mousepoint: ', self.mousePoint.x(), self.mousePoint.y()) 
+        print(('mousepoint: ', self.mousePoint.x(), self.mousePoint.y())) 
         points.ptsClicked[0].setBrush(pg.mkBrush('r'))
         points.ptsClicked[0].setSize(7)
         if self.lastPoint is None:
