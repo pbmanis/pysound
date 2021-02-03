@@ -28,11 +28,15 @@ import scipy
 import scipy.signal
 
 osname = platform.system()
+nidaq_available = False
 if osname == "Windows":
     import win32com.client
     import win32com
-    import nidaq
-
+    try:
+        import nidaq
+        nidaq_avaiable = True
+    except:
+        pass
 # The following are reference values for rough calibrations
 # They do not correct for system frequency responses
 
@@ -52,7 +56,7 @@ class Pysounds:
         self.find_hardware()
 
     def find_hardware(self):
-        if osname != "Windows":  # If not on a Windows system, just set up soundcard
+        if osname != "Windows" or not nidaq_available:  # If not on a Windows system, just set up soundcard
             self.setup_soundcard()
             self.hardware.append("Soundcard")
         else:

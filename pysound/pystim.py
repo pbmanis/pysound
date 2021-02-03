@@ -50,14 +50,19 @@ import numpy as np
 from pysound import sound as sound
 
 opsys = platform.system()
+nidaq_available = False
 if opsys in ["nt", "Windows"]:
-    import nidaqmx
-    import tdt
-    # import nidaq
-    import win32com.client
-    from nidaqmx.constants import AcquisitionType, Edge, VoltageUnits
+    try:
+        import nidaqmx
+        import tdt
+        # import nidaq
+        import win32com.client
+        from nidaqmx.constants import AcquisitionType, Edge, VoltageUnits
+        nidaq_available = True
+    except:
+        pass
 
-elif opsys in "Darwin":
+if opsys in ["Darwin", "Linux"] or nidaq_available == False:
     import pyaudio
 
 # The following are reference values for rough calibrations
@@ -111,7 +116,7 @@ class PyStim:
             User defined dictionary of parameters to pass to devices
         
         """
-        if opsys in ["Darwin", "Linux"]:  # If not on a Windows system, just set up soundcard
+        if opsys in ["Darwin", "Linux"] or nidaq_available is False:  # If not on a Windows system, just set up soundcard
             self.setup_soundcard()
             self.hardware.append("Soundcard")
             self.out_samplefreq = 44100

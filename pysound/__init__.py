@@ -7,7 +7,11 @@ import pysound.sound
 
 import platform
 # only import these under windows
+nidaq_available = False
 if platform.system() == "Windows":
-    from nidaq import *
-    from cheader import *
-
+    try:
+    	from nidaq import *
+    	from cheader import *
+    	nidaq_available = True
+    except:
+    	pass
