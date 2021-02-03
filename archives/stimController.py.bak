@@ -457,15 +457,22 @@ class Controller(object):
                                 self.CPars['FMSweep']['Freq End']*1000.])
         #TFR, changing Noise Search to possibly present a train of noise bursts 20180129
         elif stim in ['Noise RI']:
+<<<<<<< HEAD
             # if stim in ['Noise RI']:
             self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
             self.total_trials = len(self.stim_vary['Intensity'])
+=======
+            if stim in ['Noise RI']:
+                self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
+                self.total_trials = len(self.stim_vary['Intensity'])
+>>>>>>> 570b241904a16ab10106328110bf1d9e90fead29
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0.2,
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                             pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
                             fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
         elif stim in ['Noise Search']:
+<<<<<<< HEAD
             if self.CPars['Noise Train']['Number']>1:
                 howmany = (self.CPars['Noise Train']['Interval']+self.CPars['Noise Train']['Duration'])*(self.CPars['Noise Train']['Number']-1)+self.CPars['Stimulus']['Delay']*1000
                 wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0,
@@ -480,6 +487,14 @@ class Controller(object):
                             pip_start=np.arange(self.CPars['Stimulus']['Delay'],1),
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
             
+=======
+            if stim in ['Noise RI']:
+                self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
+                self.total_trials = len(self.stim_vary['Intensity'])
+            wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0.2,
+                            f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
+                            pip_duration=self.CPars['Noise Train']['Duration'],pip_start=1e-3*np.arange(self.CPars['Stimulus']['Delay']*1000.,self.CPars['Noise Train']['Interval']*(self.CPars['Noise Train']['Number'])+self.CPars['Stimulus']['Delay'],self.CPars['Noise Train']['Interval']),ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
+>>>>>>> 570b241904a16ab10106328110bf1d9e90fead29
         # elif stim in ['Noise RI', 'Noise Search']:
         #     if stim in ['Noise RI']:
         #         self.stim_vary = {'Intensity': Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]}
