@@ -21,8 +21,7 @@ from pysound import sound as sound
 
 # define available waveforms:
 
-stims = OrderedDict(
-    [
+stims = OrderedDict([
         ("pip", (0, sound.TonePip)),
         ("pipmod", (0, sound.SAMTone)),
         ("noise", (0, sound.NoisePip)),
@@ -31,9 +30,8 @@ stims = OrderedDict(
         ("fmsweep", (0, sound.FMSweep)),
         ("dmr", (0, sound.DynamicRipple)),
         ("ssn", (0, sound.SpeechShapedNoise)),
-        ("rss", (0, sound.RandomSpectrumShape)),
-    ]
-)
+        ("rss", (0, sound.RandomSpectrumShape)),]
+    )
 
 
 def play(args):
@@ -202,27 +200,30 @@ def play(args):
             ax = ax.ravel()
             # print wave.time.shape
             # print wave.sound.shape
-            ax[0].plot(wave.time, wave.sound)
+            ax[0].plot(soundwave.time, soundwave.sound, linewidth=0.5)
             f, Pxx_spec = scipy.signal.periodogram(
-                wave.sound, Fs
+                soundwave.sound, Fs
             )  # , window='flattop', nperseg=8192,
             # noverlap=512, scaling='spectrum')
-            ax[1].semilogy(f[1:], np.sqrt(Pxx_spec)[1:])
+            ax[1].semilogy(f[1:], np.sqrt(Pxx_spec)[1:], linewidth=0.5)
             # ax[1].get_shared_x_axes().join(ax[1], ax[2])
             ax[1].set_xticklabels([])
             nfft = 256
             specfreqs, spectime, Sxx = scipy.signal.spectrogram(
-                wave.sound, nperseg=int(0.01 * Fs), fs=Fs
+                soundwave.sound, nperseg=int(0.01 * Fs), fs=Fs
             )
             thr = 1e-8
             Sxx[Sxx <= thr] = thr
+            LSxx = np.log10(Sxx)
             pcm = ax[2].pcolor(
-                spectime,
-                specfreqs,
-                Sxx,
-                norm=colors.LogNorm(vmin=Sxx.min(), vmax=Sxx.max()),
-                cmap="PuBu_r",
-            )
+                spectime, specfreqs, LSxx,
+                cmap="PuBu_r", vmin=LSxx.min(), vmax=LSxx.max(),
+                shading="auto")
+        
+
+            #     norm=colors.LogNorm(vmin=Sxx.min(), vmax=Sxx.max()),
+            #     cmap="PuBu_r",
+            # )
             fig.colorbar(pcm, ax=ax[2], extend="max")
             # Pxx, freqs, bins, im = mpl.specgram(wave.sound, NFFT=nfft, Fs=Fs, noverlap=nfft/4)
             mpl.show()
