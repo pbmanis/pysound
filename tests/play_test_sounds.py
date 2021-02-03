@@ -36,15 +36,11 @@ stims = OrderedDict(
 )
 
 
-def play():
+def play(args):
     plots = False
-    if len(sys.argv) < 2:
-        exit()
-    if len(sys.argv) >= 2:
-        stimarg = sys.argv[1]
-    if len(sys.argv) >= 3:
-        if sys.argv[2] == "plot":
-            plots = True
+
+    stimarg = args.stimtype
+    plots = args.showplot
 
     PS = pystim.PyStim()
 
@@ -234,7 +230,20 @@ def play():
     # if plots and sys.flags.interactive == 0:
     #      pg.QtGui.QApplication.exec_()
 def main():
-    play()
+    parser  = argparse.ArgumentParser(
+        description="Play test sounds using the pysound library",
+        argument_default=argparse.SUPPRESS,
+        fromfile_prefix_chars="@",
+    )
+    known_stimtypes = list(stims.keys()) # get from the dictionary
+    parser.add_argument(dest="stimtype", action="store", default="pip", 
+        choices=known_stimtypes,
+        help = f"Stimulus types: {str(known_stimtypes):s}",
+    )
+    parser.add_argument("-p", "--plot", dest="showplot", action="store_true", default=False,
+        help="show plots of waveforms")
+    args = parser.parse_args()
+    play(args)
 
 if __name__ == "__main__":
     main()
