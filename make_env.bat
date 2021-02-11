@@ -1,12 +1,12 @@
 Rem @echo off
+set ENVNAME=ps_venv
 set PSPATH=%cd%
 py -3.8 -m venv %ENVNAME%
 set ACT=C:\%PSPATH%\%ENVNAME%\Scripts\activate.bat
-set DEACT=C:\%PSPATH%\%ENVNAME%\Scriptsdeactivate.bat
+set DEACT=C:\%PSPATH%\%ENVNAME%\Scripts\deactivate.bat
 %ACT%
 python --version
-set ENVNAME=ps_venv
-CALL %ENVNAME%\Scripts\activate.bat
+
 python -m pip install --upgrade pip 
 Rem  be sure pip is up to date in the new env.
 pip3 install wheel  
@@ -23,4 +23,6 @@ CALL %ENVNAME%\Scripts\activate.bat
 python setup.py develop
 
 Rem Should always run test afterwards.
-python test/play_test_sounds.py
+python tests/play_test_sounds.py
+
+pause
