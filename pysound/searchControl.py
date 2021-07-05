@@ -45,16 +45,17 @@ class Controller(object):
         # set up a timer to control timing of stimuli
         self.TrialTimer=QtCore.QTimer() # get a Q timer
         self.TrialTimer.timeout.connect(self.next_stimulus)
+
         self.maingui = maingui
-        self.ProtocolNumber = 0
+        # self.ProtocolNumber = 0
         self.TDTinfo = tdt.SynapseAPI()
         self.setAllParameters(ptreedata)
 
         # Special for clickable map
         # we don't save the data so we don't directly program these - they change with the point clicked in the map
-
-        self.attn = 35
-        self.tone_frequency = 4.0 # khz 
+#--------TFR---- we don't need these
+        # self.attn = 35
+        # self.tone_frequency = 4.0 # khz 
                 
     def setAllParameters(self, params):
         """
@@ -241,66 +242,67 @@ class Controller(object):
                 reps=self.CPars['Stimulus']['Repetitions'], 
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
             
-        elif protocol in ['One Tone']:
-            # time.sleep(2.0)
-            time.sleep(0.5)
-            spl = self.attn
-            print(('SOUND LEVEL: ', spl))
-            self.StimRecord['savedata'] = False
-            print((self.StimRecord['savedata']))
-            self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
-                isi=self.CPars['Stimulus']['Interstimulus Interval'],
-                reps=self.CPars['Stimulus']['Repetitions'],
-                attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
+#-----TFR--- only searching
+        # elif protocol in ['One Tone']:
+        #     # time.sleep(2.0)
+        #     time.sleep(0.5)
+        #     spl = self.attn
+        #     print(('SOUND LEVEL: ', spl))
+        #     self.StimRecord['savedata'] = False
+        #     print((self.StimRecord['savedata']))
+        #     self.PS.play_sound(self.wave, self.wave,
+        #         samplefreq=self.PS.out_sampleFreq,
+        #         isi=self.CPars['Stimulus']['Interstimulus Interval'],
+        #         reps=self.CPars['Stimulus']['Repetitions'],
+        #         attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
             
-        elif protocol in ['Tone RI', 'Noise RI']:
-            # time.sleep(2.0)
-            time.sleep(0.5)
-            spl = self.stim_vary['Intensity'][self.trial_count]
-            freq = self.CPars['Stimulus']['Tone Frequency']
-            # print('spl:', spl)
-            # print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
-            self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
-                isi=self.CPars['Stimulus']['Interstimulus Interval'],
-                reps=self.CPars['Stimulus']['Repetitions'], protocol=protocol, attns=self.convert_spl_attn(spl))
+        # elif protocol in ['Tone RI', 'Noise RI']:
+        #     # time.sleep(2.0)
+        #     time.sleep(0.5)
+        #     spl = self.stim_vary['Intensity'][self.trial_count]
+        #     freq = self.CPars['Stimulus']['Tone Frequency']
+        #     # print('spl:', spl)
+        #     # print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
+        #     self.PS.play_sound(self.wave, self.wave,
+        #         samplefreq=self.PS.out_sampleFreq,
+        #         isi=self.CPars['Stimulus']['Interstimulus Interval'],
+        #         reps=self.CPars['Stimulus']['Repetitions'], protocol=protocol, attns=self.convert_spl_attn(spl))
 
-        elif protocol in ['FRA']:
-            # time.sleep(2.0)
-            time.sleep(0.5)
-            spl = self.stim_vary['Intensity'][self.trial_count]
-            freq = self.stim_vary['Frequency'][self.trial_count]
-            if self.lastfreq is None or freq != self.lastfreq:  # determine if we need to calculate the waveform
-                self.lastfreq  = freq
-                wave = sound.TonePip(rate=self.PS.out_sampleFreq,
-                            duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
-                            f0=freq*1000., dbspl=spl, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
-                            ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
-                self.wave = self.map_voltage(protocol, wave.sound, clip=True)
-            print(('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl)))
-            self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
-                isi=self.CPars['Stimulus']['Interstimulus Interval'], reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol, 
-                attns=self.convert_spl_attn(spl))
+        # elif protocol in ['FRA']:
+        #     # time.sleep(2.0)
+        #     time.sleep(0.5)
+        #     spl = self.stim_vary['Intensity'][self.trial_count]
+        #     freq = self.stim_vary['Frequency'][self.trial_count]
+        #     if self.lastfreq is None or freq != self.lastfreq:  # determine if we need to calculate the waveform
+        #         self.lastfreq  = freq
+        #         wave = sound.TonePip(rate=self.PS.out_sampleFreq,
+        #                     duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
+        #                     f0=freq*1000., dbspl=spl, 
+        #                     pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+        #                     ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
+        #         self.wave = self.map_voltage(protocol, wave.sound, clip=True)
+        #     print(('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl)))
+        #     self.PS.play_sound(self.wave, self.wave,
+        #         samplefreq=self.PS.out_sampleFreq,
+        #         isi=self.CPars['Stimulus']['Interstimulus Interval'], reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol, 
+        #         attns=self.convert_spl_attn(spl))
 
-        else:
-            # time.sleep(2.0)
-            time.sleep(0.5)
-            spl = self.CPars['Stimulus']['Attenuator']
-            self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
-                isi=self.CPars['Stimulus']['Interstimulus Interval'],
-                reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol,  attns=self.convert_spl_attn(spl))
+        # else:
+        #     # time.sleep(2.0)
+        #     time.sleep(0.5)
+        #     spl = self.CPars['Stimulus']['Attenuator']
+        #     self.PS.play_sound(self.wave, self.wave,
+        #         samplefreq=self.PS.out_sampleFreq,
+        #         isi=self.CPars['Stimulus']['Interstimulus Interval'],
+        #         reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol,  attns=self.convert_spl_attn(spl))
         
-        self.StimRecord['Trials'][-1]['protocol'] = protocol
-        self.StimRecord['Trials'][-1]['spl'] = spl
-        self.StimRecord['Trials'][-1]['freq'] = freq
-        self.trial_count = self.trial_count + 1
-        if self.trial_count >= self.total_trials:
-            self.stop_run()  # end last trial without waiting for the rest
-        time.sleep(2.0)   # allow other events
+        # self.StimRecord['Trials'][-1]['protocol'] = protocol
+        # self.StimRecord['Trials'][-1]['spl'] = spl
+        # self.StimRecord['Trials'][-1]['freq'] = freq
+        # self.trial_count = self.trial_count + 1
+        # if self.trial_count >= self.total_trials:
+        #     self.stop_run()  # end last trial without waiting for the rest
+        # time.sleep(2.0)   # allow other events
         
     def stop_run(self):
         """
@@ -675,41 +677,10 @@ class BuildGui():
         self.permStatusMessage = QtGui.QLabel('<b><font color="#00FF00">Ready</b>')
         self.statusBar.addPermanentWidget(self.permStatusMessage)
         
-
-        # retrieve recent path
-        # self.configfilename = 'config.ini'
-        # if not os.path.isfile(self.configfilename):
-        #     # create a configuration file
-        #     parser=configparser.SafeConfigParser()
-        #     # parser = f.SafeConfigParser()
-        #     # initialize parser
-        #     parser.add_section('TDTTanks')
-        #     parser.set('TDTTanks', 'dir', '')
-        #     fh = open(self.configfilename, 'w')
-        #     parser.write(fh)
-        #     fh.close()
-        # else:
-        #     parser=configparser.SafeConfigParser()
-        #     # parser = ConfigParser.SafeConfigParser()
-        #     parser.read('config.ini')
-        #     self.TDTTankDirectory = parser.get('TDTTanks', 'dir')
-        #     print('tankd dir: ', self.TDTTankDirectory)
-        # self.TDTinfo.tank_directory = self.TDTinfo.getCurrentTank()
-        # self.TDTinfo.blockstatus = self.TDTinfo.setCurrentBlock('test')
-            # if len(self.TDTTankDirectory) > 0:
-            #     self.TT.open_tank()
-            #     lastblock = self.TT.find_last_block()
-            #     self.TT.close_tank()
-            #     self.TT.show_tank_path()
-
         # Define parameters that control aquisition and buttons...
         params = [
             {'name': 'Stimulus', 'type': 'group', 'children': [
-                {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search', 'Click Search',
-                        'Tone RI', 'Single Tone', 'Noise RI', 'FRA', 'Clicks', 
-                        'CMMR', 'RSS', 'DMR', 'SSN',
-                        'Tone SAM', 'Noise SAM', 'FM Sweep',
-                        'Noise Bands','Noise Train'],
+                {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search'],
                         'value': 'Noise Search'},
                 {'name': 'Tone Frequency', 'type': 'float', 'value': 4.0, 'step': 1.0, 'limits': [0.5, 99.0],
                     'suffix': 'kHz', 'default': 4.0},
@@ -735,71 +706,71 @@ class BuildGui():
                 {'name': 'Delay', 'type': 'float', 'value': 0.1, 'step': 0.05, 'limits': [0.001, 10],
                     'suffix': 's', 'default': 0.2, 'tip': 'Sound delay, in seconds'},
              ]},
-             {'name': 'Clicks', 'type': 'group', 'expanded': False, 'children': [
-                  {'name': 'Interval', 'type': 'float', 'value': 50., 'step': 5.0, 'limits': [1., 1000.0],
-                    'suffix': 'ms', 'default': 50.0},
-                  {'name': 'Number', 'type': 'int', 'value': 4, 'step': 1, 'limits': [1, 200.0],
-                    'default': 4},
-                  {'name': 'Duration', 'type': 'float', 'value': 1e-4, 'step': 10e-6, 
-                      'limits': [10e-6, 1e-3], 'suffix': 's', 'default': 1e-4},
-             ]},
+            #  {'name': 'Clicks', 'type': 'group', 'expanded': False, 'children': [
+            #       {'name': 'Interval', 'type': 'float', 'value': 50., 'step': 5.0, 'limits': [1., 1000.0],
+            #         'suffix': 'ms', 'default': 50.0},
+            #       {'name': 'Number', 'type': 'int', 'value': 4, 'step': 1, 'limits': [1, 200.0],
+            #         'default': 4},
+            #       {'name': 'Duration', 'type': 'float', 'value': 1e-4, 'step': 10e-6, 
+            #           'limits': [10e-6, 1e-3], 'suffix': 's', 'default': 1e-4},
+            #  ]},
 
-             {'name': 'FMSweep', 'type': 'group', 'expanded': False, 'children': [
-                  {'name': 'Duration', 'type': 'float', 'value': 0.5, 'step': 0.05, 
-                      'limits': [5e-3, 10], 'suffix': 's', 'default': 0.5},
-                  {'name': 'Ramp Type', 'type': 'list', 'values': ['linear', 'logarithmic'], 'value': 'linear'},
-                  {'name': 'Freq Start', 'type': 'float', 'value': 4, 'step': 1, 'limits': [1., 100.0],
-                    'default': 4},
-                  {'name': 'Freq End', 'type': 'float', 'value': 48, 'step': 1, 'limits': [1., 100.0],
-                    'default': 48},
-             ]},
+            #  {'name': 'FMSweep', 'type': 'group', 'expanded': False, 'children': [
+            #       {'name': 'Duration', 'type': 'float', 'value': 0.5, 'step': 0.05, 
+            #           'limits': [5e-3, 10], 'suffix': 's', 'default': 0.5},
+            #       {'name': 'Ramp Type', 'type': 'list', 'values': ['linear', 'logarithmic'], 'value': 'linear'},
+            #       {'name': 'Freq Start', 'type': 'float', 'value': 4, 'step': 1, 'limits': [1., 100.0],
+            #         'default': 4},
+            #       {'name': 'Freq End', 'type': 'float', 'value': 48, 'step': 1, 'limits': [1., 100.0],
+            #         'default': 48},
+            #  ]},
 
-             {'name': 'Modulation/CMMR', 'type': 'group', 'expanded': False, 'children': [
-                  {'name': 'Frequency', 'type': 'float', 'value': 40., 'step': 5.0, 'limits': [1., 1000.0],
-                    'suffix': 'Hz', 'default': 40.0},
-                  {'name': 'Depth', 'type': 'float', 'value': 50.0, 'step': 5.0, 'limits': [0.0, 200.0],
-                    'suffix': '%', 'default': 50.},
-                  {'name': 'CMMR Flanking Type', 'type': 'list', 'values': ['None', 'MultiTone', 'NBnoise'], 'value': 'MultiTone'},
-                  {'name': 'CMMR Flanking Phase', 'type': 'list', 'values': ['Comodulated', 'Codeviant', 'Random'],
-                   'value': 'Comodulated'},
-                  {'name': 'CMMR Flanking Bands', 'type': 'int', 'value': 2, 'step': 1, 'limits': [0, 10],
-                   'default': 2},
-                  {'name': 'CMMR Flanking Spacing', 'type': 'float', 'value': 1, 'step': 1/8., 
-                      'limits': [1/16., 2.], 'suffix': 'octaves', 'default': 1},
-             ]},
-             {'name': 'RSS Params', 'type': 'group', 'expanded': False,  'children': [
-                 {'name': 'CF', 'type': 'float', 'value': 16.0, 'step': 2.0, 'limits': [1.0, 64.],
-                 'suffix': 'kHz', 'default': 16.0},
-                 {'name': 'Grouping', 'type': 'int', 'value': 8, 'step': 1, 'limits': [1, 64],
-                   'default': 8},
-                 {'name': 'Level SD', 'type': 'float', 'value': 12.0, 'step': 2.0, 'limits': [0.0, 40.],
-                 'suffix': 'dB', 'default': 12.0},
-                 {'name': 'Spacing', 'type': 'int', 'value': 64, 'step': 2, 'limits': [1, 128],
-                 'suffix': '/octave', 'default': 64},
-                 {'name': 'Octaves', 'type': 'float', 'value': 3.0, 'step': 0.5, 'limits': [0.5, 16.],
-                   'default': 3.0},
-             ]},
-             {'name': 'Noise Bands', 'type': 'group', 'expanded': False, 'children': [
-                 {'name': 'Type', 'type': 'list', 'values': ['Bandpass', 'BP+Notch'],
-                  'value': 'Bandpass'},
-                 {'name': 'Notch BW', 'type': 'float', 'value': 1.0, 'step': 1.0, 'limits': [0.05, 10.],
-                 'suffix': 'kHz', 'default': 1.0},
-                 {'name': 'Noise BW', 'type': 'float', 'value': 10.0, 'step': 1.0, 'limits': [1.0, 64],
-                 'suffix': 'kHz', 'default': 10.0},
-                 {'name': 'CF', 'type': 'float', 'value': 5.0, 'limits': [0.1, 40],
-                 'suffix': 'kHz', 'default': 5.0},
-             ]},
-            #TFR added this parameter to generate a noise train 20180129
-            {'name': 'Noise Train', 'type': 'group', 'expanded': False, 'children': [
-                  {'name': 'Interval', 'type': 'float', 'value': 50., 'step': 5.0, 'limits': [1., 1000.0],
-                    'suffix': 'ms', 'default': 50.0},
-                  {'name': 'Number', 'type': 'int', 'value': 1, 'step': 1, 'limits': [1, 200.0],
-                    'default': 4},
-                  {'name': 'Duration', 'type': 'float', 'value': 0.2, 'step': 10e-2, 
-                      'limits': [0.1,1], 'suffix': 's', 'default': 0.2},
-             ]},       
+            #  {'name': 'Modulation/CMMR', 'type': 'group', 'expanded': False, 'children': [
+            #       {'name': 'Frequency', 'type': 'float', 'value': 40., 'step': 5.0, 'limits': [1., 1000.0],
+            #         'suffix': 'Hz', 'default': 40.0},
+            #       {'name': 'Depth', 'type': 'float', 'value': 50.0, 'step': 5.0, 'limits': [0.0, 200.0],
+            #         'suffix': '%', 'default': 50.},
+            #       {'name': 'CMMR Flanking Type', 'type': 'list', 'values': ['None', 'MultiTone', 'NBnoise'], 'value': 'MultiTone'},
+            #       {'name': 'CMMR Flanking Phase', 'type': 'list', 'values': ['Comodulated', 'Codeviant', 'Random'],
+            #        'value': 'Comodulated'},
+            #       {'name': 'CMMR Flanking Bands', 'type': 'int', 'value': 2, 'step': 1, 'limits': [0, 10],
+            #        'default': 2},
+            #       {'name': 'CMMR Flanking Spacing', 'type': 'float', 'value': 1, 'step': 1/8., 
+            #           'limits': [1/16., 2.], 'suffix': 'octaves', 'default': 1},
+            #  ]},
+            #  {'name': 'RSS Params', 'type': 'group', 'expanded': False,  'children': [
+            #      {'name': 'CF', 'type': 'float', 'value': 16.0, 'step': 2.0, 'limits': [1.0, 64.],
+            #      'suffix': 'kHz', 'default': 16.0},
+            #      {'name': 'Grouping', 'type': 'int', 'value': 8, 'step': 1, 'limits': [1, 64],
+            #        'default': 8},
+            #      {'name': 'Level SD', 'type': 'float', 'value': 12.0, 'step': 2.0, 'limits': [0.0, 40.],
+            #      'suffix': 'dB', 'default': 12.0},
+            #      {'name': 'Spacing', 'type': 'int', 'value': 64, 'step': 2, 'limits': [1, 128],
+            #      'suffix': '/octave', 'default': 64},
+            #      {'name': 'Octaves', 'type': 'float', 'value': 3.0, 'step': 0.5, 'limits': [0.5, 16.],
+            #        'default': 3.0},
+            #  ]},
+            #  {'name': 'Noise Bands', 'type': 'group', 'expanded': False, 'children': [
+            #      {'name': 'Type', 'type': 'list', 'values': ['Bandpass', 'BP+Notch'],
+            #       'value': 'Bandpass'},
+            #      {'name': 'Notch BW', 'type': 'float', 'value': 1.0, 'step': 1.0, 'limits': [0.05, 10.],
+            #      'suffix': 'kHz', 'default': 1.0},
+            #      {'name': 'Noise BW', 'type': 'float', 'value': 10.0, 'step': 1.0, 'limits': [1.0, 64],
+            #      'suffix': 'kHz', 'default': 10.0},
+            #      {'name': 'CF', 'type': 'float', 'value': 5.0, 'limits': [0.1, 40],
+            #      'suffix': 'kHz', 'default': 5.0},
+            #  ]},
+            # #TFR added this parameter to generate a noise train 20180129
+            # {'name': 'Noise Train', 'type': 'group', 'expanded': False, 'children': [
+            #       {'name': 'Interval', 'type': 'float', 'value': 50., 'step': 5.0, 'limits': [1., 1000.0],
+            #         'suffix': 'ms', 'default': 50.0},
+            #       {'name': 'Number', 'type': 'int', 'value': 1, 'step': 1, 'limits': [1, 200.0],
+            #         'default': 4},
+            #       {'name': 'Duration', 'type': 'float', 'value': 0.2, 'step': 10e-2, 
+            #           'limits': [0.1,1], 'suffix': 's', 'default': 0.2},
+            #  ]},       
 
-            {'name': 'File From Disk', 'type': 'str', 'value': 'test.wav', 'default': 'test.wav'},
+            # {'name': 'File From Disk', 'type': 'str', 'value': 'test.wav', 'default': 'test.wav'},
 
         ]
         
@@ -898,34 +869,37 @@ class BuildGui():
     # #        self.img.ui.menuBtn.hide()
     #         self.img.show()
     #     else:
-        self.img = None
+#-------------------TFR I think this is the FRA spectrogram code block
+#         self.img = None
 
-        glayout.nextRow()
-        l2 = glayout.addLayout(colspan=3, border=(50,0,0))  # embed a new layout
-        l2.setContentsMargins(10,10,10,10)
-        self.plots['Plot1'] = l2.addPlot(Title="Plot1")
-#        self.l2.addWidget(self.plots['Plot1'])
-        self.plots['Plot1'].getAxis('bottom').setLabel('F (kHz)')
-        self.plots['Plot1'].getAxis('left').setLabel('dB ATTN')
-        self.plots['Plot1'].setTitle('FRA')
-        self.plots['Plot1'].setXRange(0, 50, padding=0)
-        #self.plots['Plot1'].setLogMode(x=True)
-        self.plots['Plot1'].setYRange(125, -5, padding=0)
-        xd = np.arange(2, 48, 1)
-       # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
-       # print ('xd: ', xd)
-        yd = np.arange(120, 5, -5)
-        spots = []
-        self.lastPoint = None
-        for i in range(xd.shape[0]):
-            for j in range(yd.shape[0]):
-                spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
-                    'brush': pg.mkBrush('b')})
-        self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
-        self.spi.addPoints(spots)
-        self.plots['Plot1'].addItem(self.spi)
-        self.spi.getViewBox().invertY(True)
-        self.spi.sigClicked.connect(self.getClickedLocation)
+#         glayout.nextRow()
+#         l2 = glayout.addLayout(colspan=3, border=(50,0,0))  # embed a new layout
+#         l2.setContentsMargins(10,10,10,10)
+#         self.plots['Plot1'] = l2.addPlot(Title="Plot1")
+# #        self.l2.addWidget(self.plots['Plot1'])
+#         self.plots['Plot1'].getAxis('bottom').setLabel('F (kHz)')
+#         self.plots['Plot1'].getAxis('left').setLabel('dB ATTN')
+#         self.plots['Plot1'].setTitle('FRA')
+#         self.plots['Plot1'].setXRange(0, 50, padding=0)
+#         #self.plots['Plot1'].setLogMode(x=True)
+#         self.plots['Plot1'].setYRange(125, -5, padding=0)
+#         xd = np.arange(2, 48, 1)
+#        # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
+#        # print ('xd: ', xd)
+#         yd = np.arange(120, 5, -5)
+#         spots = []
+#         self.lastPoint = None
+#         for i in range(xd.shape[0]):
+#             for j in range(yd.shape[0]):
+#                 spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
+#                     'brush': pg.mkBrush('b')})
+#         self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
+#         self.spi.addPoints(spots)
+#         self.plots['Plot1'].addItem(self.spi)
+#         self.spi.getViewBox().invertY(True)
+#         self.spi.sigClicked.connect(self.getClickedLocation)
+#-------------------TFR
+
         #cross hair
         # vLine = pg.InfiniteLine(angle=90, movable=True)
         # hLine = pg.InfiniteLine(angle=0, movable=True)
@@ -967,26 +941,28 @@ class BuildGui():
         self.ptreedata.sigTreeStateChanged.connect(self.controller.change)  # connect parameters to their updates
         
         # now connect the buttons
-        self.recentpath = ''
+        # self.recentpath = ''
+#-----TFR-----buttons we need
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
+        self.btn_run.clicked.connect(self.controller.start_run)
+        self.btn_stop.clicked.connect(self.controller.stop_run)
+        self.btn_quit.clicked.connect(self.controller.quit)
+
         # self.btn_tdt.clicked.connect(print('TDT Tank: ', self.TDTinfo.getCurrentTank())) # self.TT.set_tank_path)
      #    self.ButtonEvents = QtCore.QTimer() # get a Q timer
      #    self.btn_stop.clicked.connect(timer, SIGNAL(timeout()), this, SLOT(processOneThing()));
      # timer->start();
      
-        self.btn_run.clicked.connect(self.controller.start_run)
 
+        # self.btn_pause.clicked.connect(self.controller.pause_run)
+        # self.btn_continue.clicked.connect(self.controller.next_stimulus)
 
-        self.btn_pause.clicked.connect(self.controller.pause_run)
-        self.btn_continue.clicked.connect(self.controller.next_stimulus)
-        self.btn_stop.clicked.connect(self.controller.stop_run)
-        self.btn_quit.clicked.connect(self.controller.quit)
-        self.spect_check.clicked.connect(self.speccheck)
+        # self.spect_check.clicked.connect(self.speccheck)
         # self.updateStatusMessage()
 
-    def speccheck(self):
-        self.spectimage = self.spect_check.isChecked()
+    # def speccheck(self):
+    #     self.spectimage = self.spect_check.isChecked()
 
     # def getTDTTank(self, dirname=None):
     #     filedialog = QtGui.QFileDialog()
