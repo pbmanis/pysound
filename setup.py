@@ -30,8 +30,8 @@ setup(name='pysound',
 
       },
       zip_safe=False,
-      data_files=[('wav', ['*.wav']),
-                  ('p;, [*.p]')],  # includes the current compiled mechanisms
+      # data_files=[('wav', ['*.wav']),
+      #             ('p;, [*.p]')],  # includes the current compiled mechanisms
 #      cmdclass={'makeneuron': 'Build_Nmodl'},
       classifiers = [
              "Programming Language :: Python :: 3.7+",
