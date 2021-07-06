@@ -241,7 +241,7 @@ class Controller(object):
         if stim in ['Click Search']:
             wave = sound.ClickTrain(rate=Fs, duration=self.CPars['Stimulus']['Duration'], dbspl=level,
                     click_duration=self.CPars['Clicks']['Duration'], 
-                    click_starts=0.1)
+                    click_starts=np.array(0.1))
 
         elif stim in ['Tone Search']:
             if freq is None:
@@ -254,8 +254,8 @@ class Controller(object):
         elif stim in ['Noise Search']:
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration'],
                         f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
-                        pip_duration=self.CPars['Noise']['Duration'],
-                        pip_start=0.1, ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
+                        pip_duration=self.CPars['Stimulus']['Duration'],
+                        pip_start=np.array(0.1), ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000,seed=seed)
 
         if wave is not None:
             self.wavesound = wave
