@@ -230,6 +230,7 @@ class Controller(object):
         Nothing
         """
         Fs = self.PS.out_sampleFreq  # sample frequency
+        print('sample frequency: ',Fs)
         stim = self.CPars['Stimulus']['Protocol']
 #        level = None  # level is dbspl normally for models, but set to None for TDT (5V tone reference)
         seed = 32767
@@ -241,7 +242,7 @@ class Controller(object):
         if stim in ['Click Search']:
             wave = sound.ClickTrain(rate=Fs, duration=self.CPars['Stimulus']['Duration'], dbspl=level,
                     click_duration=self.CPars['Clicks']['Duration'], 
-                    click_starts=np.array(0.1))
+                    click_starts=np.arange(0.1,1))
 
         elif stim in ['Tone Search']:
             if freq is None:
@@ -255,11 +256,12 @@ class Controller(object):
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration'],
                         f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                         pip_duration=self.CPars['Stimulus']['Duration'],
-                        pip_start=np.array(0.1), ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000,seed=seed)
+                        pip_start=np.arange(0.1,1), ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000,seed=seed)
 
         if wave is not None:
             self.wavesound = wave
             print('wave generated')
+            print(wave)
             self.wave = self.map_voltage(stim, self.wavesound.sound, clip=True) # force computation and rescale and clip the waveform
 
     def show_wave(self):
