@@ -839,15 +839,18 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
     rng = np.random.RandomState(seed)
     pin = np.zeros(t.size)
     npips = len(pip_start)
-    # print 'npips printing here', npips
-    # print 'pip_start', pip_start
+    print('npips:',npips)
+    print('pipstart: ',pip_start)
     td = int(np.floor(pip_dur * Fs))
     for n in range(npips):
         t0s = pip_start[n]  #time for the nth pip
         # print 't0s', t0s
         t0 = int(np.floor(t0s*Fs)) #index locus for the pip
-        if t0+td > t.size:
-            raise ValueError('Noise train duration exceeds waveform duration')
+        print('t.size:',t.size)
+        print('td',td)
+        print('t0',t0)
+        # if t0+td > t.size:
+        #     raise ValueError('Noise train duration exceeds waveform duration')
         pip_pts = int(pip_dur * Fs) + 1
         print(('pip_pts: ',pip_pts))
         #generate a pip
