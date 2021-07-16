@@ -61,6 +61,7 @@ class Sound(object):
         
         """
         self.opts = {'rate': rate, 'duration': duration}
+        print('opts: ',self.opts)
         self.opts.update(kwds)
         self._time = None
         self._sound = None
@@ -842,32 +843,18 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
     print('npips:',npips)
     print('pipstart: ',pip_start)
     td = int(np.floor(pip_dur * Fs))
-    for n in range(npips):
-        t0s = pip_start[n]  #time for the nth pip
-        # print 't0s', t0s
-        t0 = int(np.floor(t0s*Fs)) #index locus for the pip
-        print('t.size:',t.size)
-        print('td',td)
-        print('t0',t0)
-        # if t0+td > t.size:
-        #     raise ValueError('Noise train duration exceeds waveform duration')
-        pip_pts = int(pip_dur * Fs) + 1
-        print(('pip_pts: ',pip_pts))
-        #generate a pip
-        if dBSPL is not None:
-            pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
-        else:
-            pip = rng.randn(pip_pts)
-        # add ramp
-        ramp_pts = int(rt * Fs) + 1
-        ramp = np.sin(np.linspace(0, np.pi/2., ramp_pts))**2
-        pip[:ramp_pts] *= ramp
-        pip[-ramp_pts:] *= ramp[::-1]
-        pin[t0:t0+pip.size] += pip
-# TFR-- below this line is the original code for noise pip generation ---
-    # for start in pip_start:
-    #     # make pip template
+    # for n in range(npips):
+    #     t0s = pip_start[n]  #time for the nth pip
+    #     # print 't0s', t0s
+    #     t0 = int(np.floor(t0s*Fs)) #index locus for the pip
+    #     print('t.size:',t.size)
+    #     print('td',td)
+    #     print('t0',t0)
+    #     # if t0+td > t.size:
+    #     #     raise ValueError('Noise train duration exceeds waveform duration')
     #     pip_pts = int(pip_dur * Fs) + 1
+    #     print(('pip_pts: ',pip_pts))
+    #     #generate a pip
     #     if dBSPL is not None:
     #         pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
     #     else:
@@ -877,9 +864,23 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
     #     ramp = np.sin(np.linspace(0, np.pi/2., ramp_pts))**2
     #     pip[:ramp_pts] *= ramp
     #     pip[-ramp_pts:] *= ramp[::-1]
+    #     pin[t0:t0+pip.size] += pip
+# TFR-- below this line is the original code for noise pip generation ---
+    for start in pip_start:
+        # make pip template
+        pip_pts = int(pip_dur * Fs) + 1
+        if dBSPL is not None:
+            pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
+        else:
+            pip = rng.randn(pip_pts)
+        # add ramp
+        ramp_pts = int(rt * Fs) + 1
+        ramp = np.sin(np.linspace(0, np.pi/2., ramp_pts))**2
+        pip[:ramp_pts] *= ramp
+        pip[-ramp_pts:] *= ramp[::-1]
         
-    #     ts = int(np.floor(start * Fs))
-    #     pin[ts:ts+pip.size] += pip
+        ts = int(np.floor(start * Fs))
+        pin[ts:ts+pip.size] += pip
 # TFR-- above this line is the original code for noise pip generation ---
 
 

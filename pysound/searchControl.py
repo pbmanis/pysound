@@ -208,6 +208,8 @@ class Controller(object):
             raise ValueError('Protocol not in list we can map for scaling the voltage in map_voltage')
         if protocol in ['Click Search']:
             A = self.CPars['Voltage_Scales']['Click_V']
+        else:
+            A=10.
    
         waves = wave * A
         if clip:
@@ -249,13 +251,13 @@ class Controller(object):
                 freq = self.CPars['Stimulus']['Tone Frequency']*1000.
             wave = sound.TonePip(rate=Fs, duration=self.CPars['Stimulus']['Duration'],
                             f0=freq, dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=0.1,
+                            pip_duration=self.CPars['Stimulus']['Duration']-self.CPars['Stimulus']['Interstimulus Interval'], pip_start=0.1,
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
 
         elif stim in ['Noise Search']:
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration'],
                         f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
-                        pip_duration=self.CPars['Stimulus']['Duration'],
+                        pip_duration=self.CPars['Stimulus']['Duration']-self.CPars['Stimulus']['Interstimulus Interval'],
                         pip_start=np.arange(0.1,1), ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000,seed=seed)
 
         if wave is not None:
@@ -341,8 +343,8 @@ class BuildGui():
                     'suffix': 'ms', 'default': 2.5},
                 {'name': 'Interstimulus Interval', 'type': 'float', 'value': 0.8, 'limits': [0.01, 300.], 
                     'suffix': 's', 'default': 0.8, 'tip': 'Time between stimuli in a sweep'},
-                {'name': 'Duration', 'type': 'float', 'value': 0.2, 'step': 0.05, 'limits': [0.001, 10],
-                    'suffix': 's', 'default': 0.2, 'tip': 'Sound duration, in seconds'},
+                {'name': 'Duration', 'type': 'float', 'value': 1.0, 'step': 0.05, 'limits': [0.001, 10],
+                    'suffix': 's', 'default': 1.0, 'tip': 'Time window, in seconds'},
              ]},
 
         ]
