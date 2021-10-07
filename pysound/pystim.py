@@ -288,18 +288,19 @@ class PyStim:
         # self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
         # self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
         if self.RZ5D.getModeStr() != runmode:
-            if runmode == "Record":
-                protocol.replace(" ", "")
-                subject = self.RZ5D.getCurrentSubject()
-                self.TankName = self.RZ5D.getCurrentTank()
-                # tankname=self.RZ5D.getCurrentTank()
-                newblock = subject + protocol + "{:03d}".format(self.index)
-                for checkBlocks in self.RZ5D.getKnownBlocks():
-                    if os.path.join(self.TankName, newblock) in checkBlocks:
-                        self.index = self.index + 1
-                        newblock = subject + protocol + "{:03d}".format(self.index)
-                self.RZ5D.setCurrentBlock(newblock)
-                self.index = self.index + 1
+            #TFR 20101007 removing the block checking/matching/storing stuff- important! This needs to be revised for record mode!
+            # if runmode == "Record":
+            #     protocol.replace(" ", "")
+            #     subject = self.RZ5D.getCurrentSubject()
+            #     self.TankName = self.RZ5D.getCurrentTank()
+            #     # tankname=self.RZ5D.getCurrentTank()
+            #     newblock = subject + protocol + "{:03d}".format(self.index)
+            #     for checkBlocks in self.RZ5D.getKnownBlocks():
+            #         if os.path.join(self.TankName, newblock) in checkBlocks:
+            #             self.index = self.index + 1
+            #             newblock = subject + protocol + "{:03d}".format(self.index)
+            #     self.RZ5D.setCurrentBlock(newblock)
+            #     self.index = self.index + 1
             self.RZ5D.setModeStr(runmode)
 
             time.sleep(1.0)

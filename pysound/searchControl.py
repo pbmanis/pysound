@@ -143,12 +143,13 @@ class Controller(object):
 
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.maingui.label_status.setText('Running')
+        spl = self.CPars['Stimulus']['Attenuator']
+        print(self.CPars)
         time.sleep(0.5)
-        self.PS.play_sound(self.wave, self.wave,
-            samplefreq=self.PS.out_sampleFreq,
+        self.PS.play_sound(wavel=self.wave, waver=self.wave, samplefreq=self.PS.out_sampleFreq,
             isi=self.CPars['Stimulus']['Interstimulus Interval'],
             reps=1000, 
-            attns=self.convert_spl_attn(spl))
+            attns=self.convert_spl_attn(spl),storedata=False)
 
     def stop_run(self):
         """
@@ -235,7 +236,7 @@ class Controller(object):
         print('sample frequency: ',Fs)
         stim = self.CPars['Stimulus']['Protocol']
 #        level = None  # level is dbspl normally for models, but set to None for TDT (5V tone reference)
-        seed = 32767
+        
         #print('stim: ', stim)
         wave = None
         self.stim_vary = None
@@ -255,6 +256,7 @@ class Controller(object):
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
 
         elif stim in ['Noise Search']:
+            seed = 32767
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration'],
                         f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                         pip_duration=self.CPars['Stimulus']['Duration']-self.CPars['Stimulus']['Interstimulus Interval'],
