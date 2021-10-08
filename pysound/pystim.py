@@ -408,7 +408,8 @@ class PyStim:
             self.audio = pyaudio.PyAudio()
             chunk = 1024
             FORMAT = pyaudio.paFloat32
-            CHANNELS = 2
+            # CHANNELS = 2
+            CHANNELS=1
             RATE = samplefreq
             if self.debugFlag:
                 print("pysounds.play_sound: samplefreq: %f" % (RATE))
@@ -550,7 +551,7 @@ class PyStim:
                 samps_per_chan=wlen,
             )
             # print(task.write(wavel,auto_start=True))
-            task.triggers.start_trigger.trig_type.DIGITAL_EDGE
+            # task.triggers.start_trigger.trig_type.DIGITAL_EDGE
             task.triggers.start_trigger.cfg_dig_edge_start_trig(
                 trigger_source="/Dev1/PFI0", trigger_edge=Edge.RISING
             )
