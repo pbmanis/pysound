@@ -144,7 +144,7 @@ class Controller(object):
         self.prepare_run()  # reset the data arrays and calculate the next stimulus
         self.maingui.label_status.setText('Running')
         spl = self.CPars['Stimulus']['Attenuator']
-        print(self.CPars)
+        # print(self.CPars)
         time.sleep(0.5)
         self.PS.play_sound(wavel=self.wave, waver=self.wave, samplefreq=self.PS.out_sampleFreq,
             isi=self.CPars['Stimulus']['Interstimulus Interval'],
@@ -239,8 +239,8 @@ class Controller(object):
         
         #print('stim: ', stim)
         wave = None
-        self.stim_vary = None
-        self.total_trials = 1000
+        # self.stim_vary = None
+        # self.total_trials = 1000
         print(( 'stim: ', stim))
         if stim in ['Click Search']:
             wave = sound.ClickTrain(rate=Fs, duration=self.CPars['Stimulus']['Duration'], dbspl=level,
@@ -294,15 +294,15 @@ class Controller(object):
         self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
         #self.plots['LongTermSpec'].setLogMode(x=True, y=False)
 
-        print((self.maingui.spectimage))
-        if self.maingui.spectimage:  # enable spectrogram plot
-            import matplotlib.pyplot as mpl
-            ax1 = mpl.subplot(211)
-            mpl.plot(self.wavesound.time, self.wave)
-            axspec = mpl.subplot(212, sharex=ax1)
-            Pxx, freqs, bins, im = mpl.specgram(self.wave, NFFT=128, Fs=Fs, noverlap=64, pad_to=256)
-            #logspec.spectrogram(self.wave, Fs)
-            mpl.show()
+        # # print((self.maingui.spectimage))
+        # if self.maingui.spectimage:  # enable spectrogram plot
+        #     import matplotlib.pyplot as mpl
+        #     ax1 = mpl.subplot(211)
+        #     mpl.plot(self.wavesound.time, self.wave)
+        #     axspec = mpl.subplot(212, sharex=ax1)
+        #     Pxx, freqs, bins, im = mpl.specgram(self.wave, NFFT=128, Fs=Fs, noverlap=64, pad_to=256)
+        #     #logspec.spectrogram(self.wave, Fs)
+        #     mpl.show()
 
     
     def clearErrMsg(self):

@@ -303,7 +303,7 @@ class PyStim:
             #     self.index = self.index + 1
             self.RZ5D.setModeStr(runmode)
 
-            time.sleep(1.0)
+            # time.sleep(1.0)
         self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
         # time.sleep(2.0) # just wait a few msec #added two seconds here 20180306
 
@@ -382,6 +382,7 @@ class PyStim:
             Attenuator settings to use for this stimulus
         
         """
+        print("initiatiated hardware: ",self.hardware)
         if storedata:
             runmode = "Record"
         else:
@@ -450,96 +451,101 @@ class PyStim:
             self.setAttens(atten_left=attns)
 
         if "RZ5D" in self.hardware:
-            # swcount = -1
+            swcount = -1
             self.present_stim(
-                wavel, isi, reps, runmode, protocol
-            )  # this sets up the NI card as well.
-            #             deadmantimer = isi*(reps+1)+0.5  # just in case it doesn't stop as it should
-            #             start_time = time.time()  # deadman start time
-            # #            print('done? ', self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']))
-            #             while self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']) == 0:  # wait for zSwDone to be set
-            #                 cs = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['CurrentSweep'])
-            #                 if cs > swcount:
-            #                     print('   Sweep = %d' % cs)
-            #                     swcount = swcount + 1
-            #                 time.sleep(0.1)
-            #                 elapsed_time = time.time() - start_time  # elapsed time is in seconds
-            #                 if elapsed_time > deadmantimer:
-            #                     print('DeadmanExit')
-            #                     break
+                wavel, isi, reps, runmode, protocol)  # this sets up the NI card as well.
+            #TFR comment 10/12/21 
+            # - in search of a trigger.  Does this Make the RZ5D send out a trigger pulse to trigger the NIDAQ?
+            #No, but it makes it wait?
+            deadmantimer = isi*(reps+1)+0.5  # just in case it doesn't stop as it should
+            start_time = time.time()  # deadman start time
+#            print('done? ', self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']))
+            while self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']) == 0:  # wait for zSwDone to be set
+                cs = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['CurrentSweep'])
+                print('cs:',cs)
+                if cs > swcount:
+                    print('   Sweep = %d' % cs)
+                    swcount = swcount + 1
+                time.sleep(0.1)
+                elapsed_time = time.time() - start_time  # elapsed time is in seconds
+                if elapsed_time > deadmantimer:
+                    print('DeadmanExit')
+                    break
+
+            #TFR end comment 10/12/21
             if runmode == "Preview":
                 return
             else:
                 self.RZ5D.setModeStr("Idle")  # was (RZ5D_Standby)
-                time.sleep(2.0)  # added a couple of seconds here 20180306
+                # time.sleep(2.0)  # added a couple of seconds here 20180306 #not sure that this is necessary 20211012
             # self.task.stop()
             self.setAttens(atten_left=120)
             #    self.present_stim(wavel, waver)
 
-        if "RP21" in self.hardware:
-            # now take in some acquisition...
-            a = self.RP21.ClearCOF()
-            if a <= 0:
-                print("pystim.playSound: Unable to clear RP2.1")
-                return
-            a = self.RP21.LoadCOFsf("C:\pyStartle\startle2.rco", self.samp_cof_flag)
-            if a > 0 and self.debugFlag:
-                print(
-                    "pystim.playSound: Connected to TDT RP2.1 and startle2.rco is loaded"
-                )
-            else:
-                print("pystim.playSound: Error loading startle2.rco?, error = %d" % (a))
-                return
-            self.trueFreq = self.RP21.GetSFreq()
-            Ndata = np.ceil(0.5 * (stimulus_duration) * self.trueFreq)
-            self.RP21.SetTagVal("REC_Size", Ndata)  # old version using serbuf  -- with
-            # new version using SerialBuf, can't set data size - it is fixed.
-            # however, old version could not read the data size tag value, so
-            # could not determine when buffer was full/acquisition was done.
+        # if "RP21" in self.hardware:
+        #     # now take in some acquisition...
+        #     a = self.RP21.ClearCOF()
+        #     if a <= 0:
+        #         print("pystim.playSound: Unable to clear RP2.1")
+        #         return
+        #     a = self.RP21.LoadCOFsf("C:\pyStartle\startle2.rco", self.samp_cof_flag)
+        #     if a > 0 and self.debugFlag:
+        #         print(
+        #             "pystim.playSound: Connected to TDT RP2.1 and startle2.rco is loaded"
+        #         )
+        #     else:
+        #         print("pystim.playSound: Error loading startle2.rco?, error = %d" % (a))
+        #         return
+        #     self.trueFreq = self.RP21.GetSFreq()
+        #     Ndata = np.ceil(0.5 * (stimulus_duration) * self.trueFreq)
+        #     self.RP21.SetTagVal("REC_Size", Ndata)  # old version using serbuf  -- with
+        #     # new version using SerialBuf, can't set data size - it is fixed.
+        #     # however, old version could not read the data size tag value, so
+        #     # could not determine when buffer was full/acquisition was done.
 
-            if "PA5" in self.hardware:
-                self.setAttens(
-                    atten_left=attns[0], atten_right=attns[1]
-                )  # set equal, but not at minimum...
+        #     if "PA5" in self.hardware:
+        #         self.setAttens(
+        #             atten_left=attns[0], atten_right=attns[1]
+        #         )  # set equal, but not at minimum...
 
-            self.task.start()  # start the NI AO task
+        #     self.task.start()  # start the NI AO task
 
-            a = self.RP21.Run()  # start the RP2.1 processor...
-            a = self.RP21.SoftTrg(
-                1
-            )  # and trigger it. RP2.1 will in turn start the ni card
+        #     a = self.RP21.Run()  # start the RP2.1 processor...
+        #     a = self.RP21.SoftTrg(1)  # and trigger it. RP2.1 will in turn start the ni card
 
-            while not self.task.isTaskDone():  # wait for AO to finish?
-                self.RP21.Halt()
-                if "NIDAQ" in self.hardware:
-                    self.task.stop()
-                return
+        #     while not self.task.isTaskDone():  # wait for AO to finish?
+        #         self.RP21.Halt()
+        #         if "NIDAQ" in self.hardware:
+        #             self.task.stop()
+        #         return
 
-            if "PA5" in self.hardware:
-                self.setAttens()  # attenuators down (there is noise otherwise)
-            # read the data...
-            curindex1 = self.RP21.GetTagVal("Index1")
-            curindex2 = self.RP21.GetTagVal("Index2")
+        #     if "PA5" in self.hardware:
+        #         self.setAttens()  # attenuators down (there is noise otherwise)
+        #     # read the data...
+        #     curindex1 = self.RP21.GetTagVal("Index1")
+        #     curindex2 = self.RP21.GetTagVal("Index2")
 
-            while (
-                curindex1 < Ndata or curindex2 < Ndata
-            ):  # wait for input data to be sampled
-                self.RP21.Halt()
-                return
-                curindex1 = self.RP21.GetTagVal("Index1")
-                curindex2 = self.RP21.GetTagVal("Index2")
+        #     while (
+        #         curindex1 < Ndata or curindex2 < Ndata
+        #     ):  # wait for input data to be sampled
+        #         self.RP21.Halt()
+        #         return
+        #         curindex1 = self.RP21.GetTagVal("Index1")
+        #         curindex2 = self.RP21.GetTagVal("Index2")
 
-            self.ch2 = self.RP21.ReadTagV("Data_out2", 0, Ndata)
-            # ch2 = ch2 - mean(ch2[1:int(Ndata/20)]) # baseline: first 5% of trace
-            self.ch1 = self.RP21.ReadTagV("Data_out1", 0, Ndata)
-            self.RP21.Halt()
+        #     self.ch2 = self.RP21.ReadTagV("Data_out2", 0, Ndata)
+        #     # ch2 = ch2 - mean(ch2[1:int(Ndata/20)]) # baseline: first 5% of trace
+        #     self.ch1 = self.RP21.ReadTagV("Data_out1", 0, Ndata)
+        #     self.RP21.Halt()
 
     def prepare_NIDAQ(self, wavel, waver=None):
         samplefreq = self.out_sampleFreq
         print("samplefreq :", samplefreq)
         wlen = len(wavel)
+        print("length of wave: ",wlen)
         #        daqwave = np.zeros(wlen)
-        (wavel, clipl) = self.clip(wavel, 10.0)
+        (wavel, clipl) = self.clip(wavel, 10.0) #clip the wave if it's >10V
+        print("length of clipped wave: ",len(wavel))
         with nidaqmx.Task() as task:
             task.ao_channels.add_ao_voltage_chan(
                 "/Dev1/ao0", min_val=-10.0, max_val=10.0, units=VoltageUnits.VOLTS
@@ -551,7 +557,7 @@ class PyStim:
                 samps_per_chan=wlen,
             )
             # print(task.write(wavel,auto_start=True))
-            # task.triggers.start_trigger.trig_type.DIGITAL_EDGE
+            task.triggers.start_trigger.trig_type.DIGITAL_EDGE
             task.triggers.start_trigger.cfg_dig_edge_start_trig(
                 trigger_source="/Dev1/PFI0", trigger_edge=Edge.RISING
             )
