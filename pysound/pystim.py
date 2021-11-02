@@ -142,15 +142,10 @@ class PyStim:
     def setup_nidaq(self, device_info):
         # get the drivers and the activeX control (win32com)
 
-        # if len(nidaq.NIDAQ.listDevices()) <=  0:
-        #     if self.requireNIPA5:
-        #         raise IOError('NIDAQ requirement requested, but device not found')
-        #     else:
-        #         return False
+
         self.NIDevice = nidaqmx.system.System.local()
         self.NIDevicename = self.NIDevice.devices.device_names
-        # self.NIDevice = nidaq.NIDAQ.getDevice(device_info['devicename'])
-        # self.NIDevicename = device_info['devicename']
+
         self.out_sampleFreq = 200000
         return True
 
@@ -222,58 +217,19 @@ class PyStim:
 
     def setup_RZ5D(self):
         self.RZ5D = tdt.SynapseAPI()
-        # self.RZ5D = win32com.client.Dispatch('TDevAcc.X')
-        # self.RZ5D.ConnectServer('Local')
-
-        # # RZ5D Parameter tag definitions - mostly from the TDT CoreSweep macro
-        # self.RZ5D_ParTags = {'SweepPeriod': 'ACQ_16ch.zSwPeriod',
-        #                      'SweepTrigger': 'ACQ_16Ch.SweepTrigger',
-        #                      'TotalSweepCount': 'ACQ_16ch.zSwCount',
-        #                      'CurrentSweep': 'ACQ_16ch.zSwNum',
-        #                      'SweepDone': 'ACQ_16ch.zSwDone',
-        #                      }
-        # self.getParams_RZ5D()
-
-        # self.RZ5DParams['SampleFrequency'] = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name']) # get device sample frequency
+        
         if self.RZ5D.getModeStr() != "Idle":
             self.RZ5D.setModeStr("Idle")
-        # self.RZ5D.SetSysMode(RZ5D_Standby) # Standby needed to set up parameters....
-        #     # time.sleep(2.0)
-        # time.sleep(0.5)
-
-        # self.RZ5D.SetTargetVal(self.RZ5D_ParTags['TotalSweepCount'], 3)
-
-        # self.RZ5D.SetTargetVal(self.RZ5D_ParTags['SweepPeriod'], 1.0*self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])) # initially set for one second
-        # self.RZ5DParams['zSwPeriod'] = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepPeriod'])
         return True
 
     def getParams_RZ5D(self):
         self.RZ5DParams = {}  # keep a local copy of the parameters
         self.RZ5DParams["device_name"] = self.RZ5D.getGizmoNames()
         self.RZ5DParams["device status"] = self.RZ5D.getModeStr()
-        # self.RZ5DParams['device_name'] = self.RZ5D.GetDeviceName(0)
-        # self.RZ5DParams['RCO'] = self.RZ5D.GetDeviceRCO(self.RZ5DParams['device_name'])
-        # self.RZ5DParams['device_status'] = self.RZ5D.GetDeviceStatus(self.RZ5DParams['device_name'])
-        # self.RZ5DParams['zSwCount'] = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['TotalSweepCount'])
-
+        
     def show_RZ5D(self):
-        # print('Device is using RCO/X file: {0:s}'.format(self.RZ5DParams['RCO']))
         print("Device Status: {0:d}".format(self.RZ5DParams["device_status"]))
-        # print('RZ5D Sample Frequency: %f' % self.RZ5DParams['SampleFrequency'])
-        # print('zSwCount: %d' % self.RZ5DParams['zSwCount'])
-        # print('zSwPeriod points (N): {0:d}'.format(int(self.RZ5DParams['zSwPeriod'])))
-        # for tag in [68, 73, 76, 80, 83, 65]:
-        #     self.getTags(self.RZ5D, self.RZ5DParams['device_name'], tag)
-
-    # def getTags(self, device, device_name, tagnum):
-    #     tag =  device.GetNextTag(device_name, tagnum, 1)
-    #     if len(tag) > 0:
-    #         print('Type {0:2d}: Tag = {1:s}'.format(tagnum, tag))
-    #     while len(tag) > 0:
-    #         tag =  device.GetNextTag(device_name, tagnum, 0)
-    #         if len(tag) == 0:
-    #             return
-    #         print('         Tag = {0:s}'.format(tag))
+        
 
     def present_stim(
         self,
@@ -283,10 +239,6 @@ class PyStim:
         runmode="Record",
         protocol="Search",
     ):
-        # sf = self.RZ5D.GetDeviceSF(self.RZ5DParams['device_name'])
-        # # self.RZ5D.SetSysMode(RZ5D_Preview) # Preview needed to set up parameters....
-        # self.RZ5D.setTargetVal(self.RZ5D_ParTags['SweepPeriod'], stimulus_period*sf)
-        # self.RZ5D.setTargetVal(self.RZ5D_ParTags['TotalSweepCount'], reps+1)
         if self.RZ5D.getModeStr() != runmode:
             #TFR 20101007 removing the block checking/matching/storing stuff- important! This needs to be revised for record mode!
             # if runmode == "Record":
@@ -303,19 +255,13 @@ class PyStim:
             #     self.index = self.index + 1
             self.RZ5D.setModeStr(runmode)
 
-            # time.sleep(1.0)
         self.prepare_NIDAQ(waveforms)  # load up NIDAQ to go
-        # time.sleep(2.0) # just wait a few msec #added two seconds here 20180306
-
-        # self.RZ5D.SetSysMode(runmode)
-
+        
     def RZ5D_close(self):
-        # self.RZ5D.SetSysMode(RZ5D_Idle) # Idle
         if self.RZ5D.getModeStr() != "Idle":
             self.RZ5D.setModeStr("Idle")
         time.sleep(1.0)
-        # self.RZ5D.CloseConnection();
-
+        
     def getHardware(self):
         return (self.hardware, self.out_sampleFreq, self.in_sampleFreq)
 
@@ -383,27 +329,13 @@ class PyStim:
         
         """
         print("initiatiated hardware: ",self.hardware)
+        print("length of wavel: ", len(wavel))
         if storedata:
             runmode = "Record"
         else:
             runmode = "Preview"
-        # create an output waveform that has the stimulus repeated reps times with the selected ISI
+        
         samplefreq = self.out_sampleFreq
-        stimulus_duration = isi * reps  # len(wavel)*samplefreq + postduration
-        pts_per_rep = int(float(isi) * samplefreq)
-        if wavel.shape[0] < pts_per_rep:
-            wavel = np.concatenate(
-                (wavel, np.zeros(pts_per_rep - wavel.shape[0])), axis=0
-            )
-        wavel = np.tile(wavel, reps)
-        if waver is not None:
-            if waver.shape[0] < pts_per_rep:
-                waver = np.concatenate(
-                    (waver, np.zeros(pts_per_rep - waver.shape[0])), axis=0
-                )
-            waver = np.tile(waver, reps)
-
-        # different approaches to playing out the sound for different hardware configuration:
 
         if "pyaudio" in self.hardware:
             self.audio = pyaudio.PyAudio()
@@ -422,9 +354,7 @@ class PyStim:
                 input=True,
                 frames_per_buffer=chunk,
             )
-            # play stream
-            # print self.stream
-            wave = np.zeros(2 * len(wavel))
+             wave = np.zeros(2 * len(wavel))
             if len(wavel) != len(waver):
                 print(
                     "pysounds.play_sound: waves not matched in length: %d vs. %d (L,R)"
@@ -438,20 +368,20 @@ class PyStim:
                 1::2
             ] = wavel  # order chosen so matches etymotic earphones on my macbookpro.
             postdur = int(float(postduration * self.in_sampleFreq))
-            # rwave = read_array(len(wavel)+postdur, CHANNELS)
+
             write_array(self.stream, wave)
             self.stream.stop_stream()
             self.stream.close()
             self.audio.terminate()
-            # self.ch1 = rwave[0::2]
-            # self.ch2 = rwave[1::2]
+
             return
 
         if "PA5" in self.hardware:
-            self.setAttens(atten_left=attns)
-
+            self.setAttens(atten_left=attns
+)
         if "RZ5D" in self.hardware:
             swcount = -1
+            reps = 5
             self.present_stim(
                 wavel, isi, reps, runmode, protocol)  # this sets up the NI card as well.
             #TFR comment 10/12/21 
@@ -460,28 +390,47 @@ class PyStim:
             deadmantimer = isi*(reps+1)+0.5  # just in case it doesn't stop as it should
             start_time = time.time()  # deadman start time
 #            print('done? ', self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']))
-            while self.RZ5D.GetTargetVal(self.RZ5D_ParTags['SweepDone']) == 0:  # wait for zSwDone to be set
-                cs = self.RZ5D.GetTargetVal(self.RZ5D_ParTags['CurrentSweep'])
-                print('cs:',cs)
-                if cs > swcount:
-                    print('   Sweep = %d' % cs)
-                    swcount = swcount + 1
-                time.sleep(0.1)
-                elapsed_time = time.time() - start_time  # elapsed time is in seconds
-                if elapsed_time > deadmantimer:
-                    print('DeadmanExit')
-                    break
+            # print("RZ5d synapse attributes/methods: ", dir(self.RZ5D))
+            
+            # PBM comment 10/20/21
+            # something like this will be needed to retrigger the nidaq
+            #as currently configured, it only triggers once
+            # This requires the synapse design have a pulse generator in the RZ5D (top level?)
+            # which should be accessible thorugh the API. Not working for me yet.
+            # print("Gizmos: ", self.RZ5D.getGizmoNames())
+            # params = self.RZ5D.getParameterNames('PulseGen1')
+            # print('params: ', params)
+            # for param in params:
+            #     info = self.RZ5D.getParameterInfo('PulseGen1', param)
+            #     print(f"Param: {param:s}, Info: {str(info):s}")
+            # self.RZ5D.setParameter('PulsePeriod', isi)
+            # self.RZ5D.setParameter('Enable', 1.0)
+            # endcomment
+
+            # this starts and runs the stim/recording for specified # sweeps/time.
+            self.RZ5D.setModeStr(runmode)
+            sweeps_start = self.RZ5D.getSystemStatus()['recordSecs']
+            currTime = 0
+            prevTime = 0
+            print(f"ISI: {isi:.3f}  reps: {reps:d}, runmode: {runmode:s}")
+            print(f"Running for maximum of: {deadmantimer:.2f} seconds")
+            while currTime < deadmantimer:
+                currTime = self.RZ5D.getSystemStatus()['recordSecs']-sweeps_start
+                if prevTime != currTime:
+                    print(f"Running, sweeps time elapsed: {currTime:d} sec")
+                prevTime = currTime
+            print("ok, done")
+
 
             #TFR end comment 10/12/21
             if runmode == "Preview":
                 return
             else:
                 self.RZ5D.setModeStr("Idle")  # was (RZ5D_Standby)
-                # time.sleep(2.0)  # added a couple of seconds here 20180306 #not sure that this is necessary 20211012
-            # self.task.stop()
-            self.setAttens(atten_left=120)
-            #    self.present_stim(wavel, waver)
 
+            self.setAttens(atten_left=120)
+
+############################- I think this block of code can be deleted
         # if "RP21" in self.hardware:
         #     # now take in some acquisition...
         #     a = self.RP21.ClearCOF()
@@ -537,6 +486,7 @@ class PyStim:
         #     # ch2 = ch2 - mean(ch2[1:int(Ndata/20)]) # baseline: first 5% of trace
         #     self.ch1 = self.RP21.ReadTagV("Data_out1", 0, Ndata)
         #     self.RP21.Halt()
+###################################- Potentially remove
 
     def prepare_NIDAQ(self, wavel, waver=None):
         samplefreq = self.out_sampleFreq
@@ -617,11 +567,6 @@ class PyStim:
                 self.audio.terminate()
             except:
                 pass  # possible we never created teh stream...
-
-        # if 'NIDAQ' in self.hardware:
-        # if self.task is not None:
-        #     self.task.SetStartTrigRetriggerable = 0
-        #     self.task.stop()
 
         if "RP21" in self.hardware:
             self.RP21.Halt()

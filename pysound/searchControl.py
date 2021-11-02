@@ -13,6 +13,23 @@ Currently, only the atten mode is supported.
 
 """
 
+######################- Stimulus repetition code- need to decide where this goes...  Big Idea- load the DAQ once and retrigger
+        # stimulus_duration = isi * reps  # len(wavel)*samplefreq + postduration
+        # pts_per_rep = int(float(isi) * samplefreq)
+        # if wavel.shape[0] < pts_per_rep:
+        #     wavel = np.concatenate(
+        #         (wavel, np.zeros(pts_per_rep - wavel.shape[0])), axis=0
+        #     )
+        # wavel = np.tile(wavel, reps)
+        # if waver is not None:
+        #     if waver.shape[0] < pts_per_rep:
+        #         waver = np.concatenate(
+        #             (waver, np.zeros(pts_per_rep - waver.shape[0])), axis=0
+        #         )
+        #     waver = np.tile(waver, reps)
+
+###########################---End Stimulus repetition code
+
 import sys
 import os
 import datetime
@@ -146,6 +163,7 @@ class Controller(object):
         spl = self.CPars['Stimulus']['Attenuator']
         # print(self.CPars)
         time.sleep(0.5)
+        print("length of wave pre play-sound: ",len(self.wave))
         self.PS.play_sound(wavel=self.wave, waver=self.wave, samplefreq=self.PS.out_sampleFreq,
             isi=self.CPars['Stimulus']['Interstimulus Interval'],
             reps=1000, 

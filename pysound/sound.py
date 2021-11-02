@@ -25,7 +25,6 @@ Notes:
     Otherwise, the amplitude is hardware dependent. To accomodate this,
     dBSPL should be None in a non-modeling environment.
 
-2.  When dbSPL is None, the routines will produce
     waveforms with amplitude 1 (except the noise, which will have peak amplitude
     larger than 1, but will have a standard deviation of 1).
 
@@ -82,7 +81,7 @@ class Sound(object):
         """
         if self._time is None:
             self._time = np.linspace(0, self.opts['duration'], self.num_samples)
-#        print('time shape: ', self._time.shape, self.opts['duration'], self.num_samples)
+        print('time shape: ', self._time.shape, self.opts['duration'], self.num_samples)
         return self._time
     
     @property
@@ -802,7 +801,7 @@ def piptone(t, rt, Fs, F0, dBSPL, pip_dur, pip_start, pip_phase=0.):
     ps = pip_start
     if ~isinstance(ps, list):
         ps = [ps]
-    for start in pip_start:
+    for start in ps:
         ts = int(np.floor(start * Fs))
         pin[ts:ts+pip.size] += pip
     
