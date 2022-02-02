@@ -60,7 +60,6 @@ class Sound(object):
         
         """
         self.opts = {'rate': rate, 'duration': duration}
-        print('opts: ',self.opts)
         self.opts.update(kwds)
         self._time = None
         self._sound = None
@@ -73,23 +72,23 @@ class Sound(object):
         if self._sound is None:
             self._sound = self.generate()
         return self._sound
-    
+
     @property
     def time(self):
         """
-        :obj:`array`: The array of time values, expressed in seconds.
+        :nparray: The time array to go with the sound.
+        This should be total time of the waveform.
         """
         if self._time is None:
             self._time = np.linspace(0, self.opts['duration'], self.num_samples)
-        print('time shape: ', self._time.shape, self.opts['duration'], self.num_samples)
         return self._time
-    
+
     @property
     def num_samples(self):
         """
         int: The number of samples in the sound array.
         """
-        return 1 + int(self.opts['duration'] * self.opts['rate'])
+        return int(self.opts['duration'] * self.opts['rate'])
     
     @property
     def dt(self):
@@ -174,7 +173,7 @@ class TonePip(Sound):
     
     """
     def __init__(self, **kwds):
-        reqdWords = ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_start', 'ramp_duration']
+        reqdWords = ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_starts', 'ramp_duration']
         for k in reqdWords:
             if k not in list(kwds.keys()):
                 raise TypeError("Missing required argument '%s'" % k)
@@ -195,8 +194,8 @@ class TonePip(Sound):
         
         """
         o = self.opts
-        return piptone(self.time, o['ramp_duration'], o['rate'], o['f0'],
-                       o['dbspl'], o['pip_duration'], o['pip_start'])
+        return piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=o['f0'],
+                       dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_starts'])
 
 
 class FMSweep(Sound):
@@ -263,7 +262,7 @@ class NoisePip(Sound):
     
     """
     def __init__(self, **kwds):
-        for k in ['rate', 'duration', 'dbspl', 'pip_duration', 'pip_start', 'ramp_duration', 'seed']:
+        for k in ['rate', 'duration', 'dbspl', 'pip_duration', 'pip_starts', 'ramp_duration', 'seed']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
         if kwds['pip_duration'] < kwds['ramp_duration'] * 2:
@@ -284,8 +283,7 @@ class NoisePip(Sound):
         
         """
         o = self.opts
-        return pipnoise(self.time, o['ramp_duration'], o['rate'],
-                        o['dbspl'], o['pip_duration'], o['pip_start'], o['seed'])
+        return pipnoise(self.time, o['ramp_duration'], o['rate'],o['dbspl'], o['pip_duration'], o['pip_starts'], o['seed'])
 
 
 class NoiseBandPip(Sound):
@@ -337,36 +335,36 @@ class NoiseBandPip(Sound):
         
         Sound.__init__(self, **kwds)
     
-    def generate(self):
-        """
-        Call to compute the noise pips
+    # def generate(self):
+    #     """
+    #     Call to compute the noise pips
         
-        Returns
-        -------
-        array :
-            generated waveform
+    #     Returns
+    #     -------
+    #     array :
+    #         generated waveform
         
-        """
-        o = self.opts
-        bbnoise1 = pipnoise(self.time, o['ramp_duration'], o['rate'],
-                        o['dbspl'], o['pip_duration'], o['pip_start'], o['seed'])
-        bbnoise2 = pipnoise(self.time, o['ramp_duration'], o['rate'],
-                        o['dbspl'], o['pip_duration'], o['pip_start'], o['seed']+1)  # independent noises
-        # fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
-        # fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
-        if o['type'] in ['Bandpass']:
-            fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
-            fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
-            bpnoise = fb1*np.cos(2*np.pi*o['centerfreq']*self.time) + fb2*np.sin(2*np.pi*o['centerfreq']*self.time)
+    #     """
+    #     o = self.opts
+    #     bbnoise1 = pipnoise(self.time, o['ramp_duration'], o['rate'],
+    #                     o['dbspl'], o['pip_duration'], o['pip_start'], o['seed'])
+    #     bbnoise2 = pipnoise(self.time, o['ramp_duration'], o['rate'],
+    #                     o['dbspl'], o['pip_duration'], o['pip_start'], o['seed']+1)  # independent noises
+    #     # fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
+    #     # fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
+    #     if o['type'] in ['Bandpass']:
+    #         fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
+    #         fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
+    #         bpnoise = fb1*np.cos(2*np.pi*o['centerfreq']*self.time) + fb2*np.sin(2*np.pi*o['centerfreq']*self.time)
         
-        if o['type'] in ['BP+Notch']:
-            nn1 = signalFilterButter(bbnoise1, filtertype='bandpass',
-                lpf=o['noisebw'], hpf=o['notchbw'], Fs=o['rate'], poles=4)
-            nn2 = signalFilterButter(bbnoise2, filtertype='bandpass',
-                lpf=o['noisebw'], hpf=o['notchbw'], Fs=o['rate'], poles=4)
-            bpnoise = nn1*np.cos(2*np.pi*o['centerfreq']*self.time) + nn2*np.sin(2*np.pi*o['centerfreq']*self.time)
+    #     if o['type'] in ['BP+Notch']:
+    #         nn1 = signalFilterButter(bbnoise1, filtertype='bandpass',
+    #             lpf=o['noisebw'], hpf=o['notchbw'], Fs=o['rate'], poles=4)
+    #         nn2 = signalFilterButter(bbnoise2, filtertype='bandpass',
+    #             lpf=o['noisebw'], hpf=o['notchbw'], Fs=o['rate'], poles=4)
+    #         bpnoise = nn1*np.cos(2*np.pi*o['centerfreq']*self.time) + nn2*np.sin(2*np.pi*o['centerfreq']*self.time)
         
-        return bpnoise
+    #     return bpnoise
 
 
 class ClickTrain(Sound):
@@ -379,8 +377,7 @@ class ClickTrain(Sound):
     dbspl : float
         Maximum amplitude of click in dB SPL.
     click_duration : float
-        Duration of each click including ramp time. Must be at least
-        1/rate.
+        Duration of each click. Must be at least 1/rate.
     click_starts : array-like
         Start times of each click
     """
@@ -395,8 +392,8 @@ class ClickTrain(Sound):
     
     def generate(self):
         o = self.opts
-        return clicks(self.time, o['rate'],
-                        o['dbspl'], o['click_duration'], o['click_starts'])
+        return clicks(self.time, Fs=o['rate'],
+                        dBSPL=o['dbspl'], click_duration=o['click_duration'], click_starts=o['click_starts'])
 
 
 class SAMNoise(Sound):
@@ -521,7 +518,6 @@ class ComodulationMasking(Sound):
     
     """
     def __init__(self, **kwds):
-        print (kwds)
         for k in ['rate', 'duration', 'pip_duration', 'f0', 'dbspl', 'fmod', 'dmod', 'pip_start', 'ramp_duration',
                   'flanking_type', 'flanking_spacing', 'flanking_phase', 'flanking_bands']:
             if k not in kwds:
@@ -532,13 +528,14 @@ class ComodulationMasking(Sound):
         
         o = self.opts
         # start with center tone
-        onfreqmasker = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'],
-                       o['dbspl'], o['pip_duration'], o['pip_start'])
+        onfreqmasker = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=o['f0'],
+                       dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_start'])
         onfreqmasker = sinusoidal_modulation(self.time, onfreqmasker, o['pip_start'],
             o['fmod'], o['dmod'], 0.)
         tardelay = 0.5/o['fmod']  # delay by one half cycle
-        target = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'],
-                       o['dbspl'], o['pip_duration']-tardelay, [p + tardelay for p in o['pip_start']])
+        target = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=o['f0'],
+                       dbspl=o['dbspl'], pip_dur=o['pip_duration']-tardelay, 
+                       pip_starts=[p + tardelay for p in o['pip_start']])
         target = sinusoidal_modulation(self.time, target, [p + tardelay for p in o['pip_start']],
                        o['fmod'], o['dmod'], 0.)
         if o['flanking_type'] == 'None':
@@ -552,9 +549,9 @@ class ComodulationMasking(Sound):
             flankfs = sorted(flankfs)
             flanktone = [[]]*len(flankfs)
             for i, fs in enumerate(flankfs):
-                flanktone[i] = piptone(self.time, o['ramp_duration'], o['rate'], flankfs[i],
-                               o['dbspl'], o['pip_duration'], o['pip_start'])
-        print(('type ,phase: ', o['flanking_type'], o['flanking_phase']))
+                flanktone[i] = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=flankfs[i],
+                               dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_start'])
+        # print(('type ,phase: ', o['flanking_type'], o['flanking_phase']))
         if o['flanking_type'] == 'NBnoise':
             raise ValueError('Flanking type nbnoise not yet implemented')
         if o['flanking_phase'] == 'Comodulated':
@@ -564,9 +561,9 @@ class ComodulationMasking(Sound):
         if o['flanking_phase'] == 'Random':
                 ph = 2.0*np.pi*np.arange(-o['flanking_bands'], o['flanking_bands']+1, 1)/o['flanking_bands']
                 raise ValueError('Random flanking phases not implemented')
-        print(('flanking phases: ', ph))
-        print((len(flanktone)))
-        print(('flanking freqs: ', flankfs))
+        # print(('flanking phases: ', ph))
+        # print((len(flanktone)))
+        # print(('flanking freqs: ', flankfs))
         for i, fs in enumerate(flankfs):
             flanktone[i] = sinusoidal_modulation(self.time, flanktone[i],
                     o['pip_start'], o['fmod'], o['dmod'], ph[i])
@@ -583,8 +580,7 @@ class DynamicRipple(Sound):
         for k in ['rate', 'duration']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
-        # if kwds['pip_duration'] < kwds['ramp_duration'] * 2:
-        #     raise ValueError("pip_duration must be greater than (2 * ramp_duration).")
+
         self.dmr = DMR.DMR()
         Sound.__init__(self, **kwds)
     
@@ -621,9 +617,8 @@ class SpeechShapedNoise(Sound):
         o = self.opts
         #print 'opts: ', o
         ssn, t = make_ssn(o['rate'], o['duration'], o['waveform'], o['samplingrate'])
-        self._time = t  # override time array because we read a wave file
-        # if self.opts['duration'] == 0:
-        #     self.opts['duration'] = np.max(t) - 1./o['rate']
+        # self._time = t  # override time array because we read a wave file
+
         return ssn
 
 
@@ -673,8 +668,8 @@ class RandomSpectrumShape(Sound):
             amplist[i:i+groupsize] = 20*np.log10(a + db)
         for i in range(len(freqlist)):
 #            print(' f: %8.3f   a: %8.1f' % (freqlist[i], amplist[i]))
-            wave = piptone(self.time, o['ramp_duration'], o['rate'], freqlist[i],
-                    amplist[i], o['pip_duration'], o['pip_start'], pip_phase=np.pi*2*np.random.rand())
+            wave = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=freqlist[i],
+                    dbspl=amplist[i], pip_dur=o['pip_duration'], pip_starts=o['pip_start'], pip_phase=np.pi*2*np.random.rand())
             if i == 0:
                 result = wave
             else:
@@ -751,7 +746,8 @@ def linearramp(pin, mxpts, irpts):
     return out
 
 
-def piptone(t, rt, Fs, F0, dBSPL, pip_dur, pip_start, pip_phase=0.):
+def piptone(t, ramp:float=2.5, rate:float=100000., f0:float=1000., 
+        dbspl:float=40., pip_dur:float=0.1, pip_starts:list=[0.1], pip_phase:float=0.):
     """
     Create a waveform with multiple sine-ramped tone pips. Output is in
     Pascals.
@@ -760,13 +756,13 @@ def piptone(t, rt, Fs, F0, dBSPL, pip_dur, pip_start, pip_phase=0.):
     ----------
     t : array
         array of time values
-    rt : float
+    ramp : float
         ramp duration
-    Fs : float
+    rate : float
         sample rate
-    F0 : float
+    f0 : float
         pip frequency
-    dBSPL : float
+    dspl : float
         maximum sound pressure level of pip
     pip_dur : float
         duration of pip including ramps
@@ -782,28 +778,26 @@ def piptone(t, rt, Fs, F0, dBSPL, pip_dur, pip_start, pip_phase=0.):
     
     """
     # make pip template
-    pip_pts = int(pip_dur * Fs) + 1
-    pip_t = np.linspace(0, pip_dur, pip_pts)
-    pip =  np.sin(2*np.pi*F0*pip_t+pip_phase)  # unramped stimulus, scaled -1 to 1
-    if dBSPL is not None:
-        pip = np.sqrt(2) * dbspl_to_pa(dBSPL) * pip # unramped stimulus
+    pip_t = np.linspace(0, pip_dur, num=int(np.floor(pip_dur*rate)))
+    pip =  np.sin(2*np.pi*f0*pip_t+pip_phase)  # unramped stimulus, scaled -1 to 1
+    if dbspl is not None:
+        pip = np.sqrt(2) * dbspl_to_pa(dbspl) * pip # unramped stimulus
     else:
         pass  # no need to scale here
     
-    # add ramp
-    ramp_pts = int(rt * Fs) + 1
+    # add onset/offset ramps inside the duration of the pip
+    ramp_pts = int(ramp * rate) + 1
     ramp = np.sin(np.linspace(0, np.pi/2., ramp_pts))**2
     pip[:ramp_pts] *= ramp
     pip[-ramp_pts:] *= ramp[::-1]
-    
+    if not isinstance(pip_starts, list):
+        raise ValueError("pip_starts must be a list of start times")
     # apply template to waveform
-    pin = np.zeros(t.size)
-    ps = pip_start
-    if ~isinstance(ps, list):
-        ps = [ps]
-    for start in ps:
-        ts = int(np.floor(start * Fs))
-        pin[ts:ts+pip.size] += pip
+    pip_pts = int(np.floor(rate*(pip_starts[-1] + pip_dur)))
+    pin = np.zeros(pip_pts)
+    for start in pip_starts:
+        ts = int(np.floor(start * rate))
+        pin[ts:ts+len(pip)] += pip
     
     return pin
 
@@ -836,38 +830,17 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
         waveform
     
     """
+ 
     rng = np.random.RandomState(seed)
-    pin = np.zeros(t.size)
+    pin = np.zeros(int((pip_dur+pip_start[0])*Fs))
+
     npips = len(pip_start)
-    print('npips:',npips)
-    print('pipstart: ',pip_start)
-    td = int(np.floor(pip_dur * Fs))
-    # for n in range(npips):
-    #     t0s = pip_start[n]  #time for the nth pip
-    #     # print 't0s', t0s
-    #     t0 = int(np.floor(t0s*Fs)) #index locus for the pip
-    #     print('t.size:',t.size)
-    #     print('td',td)
-    #     print('t0',t0)
-    #     # if t0+td > t.size:
-    #     #     raise ValueError('Noise train duration exceeds waveform duration')
-    #     pip_pts = int(pip_dur * Fs) + 1
-    #     print(('pip_pts: ',pip_pts))
-    #     #generate a pip
-    #     if dBSPL is not None:
-    #         pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
-    #     else:
-    #         pip = rng.randn(pip_pts)
-    #     # add ramp
-    #     ramp_pts = int(rt * Fs) + 1
-    #     ramp = np.sin(np.linspace(0, np.pi/2., ramp_pts))**2
-    #     pip[:ramp_pts] *= ramp
-    #     pip[-ramp_pts:] *= ramp[::-1]
-    #     pin[t0:t0+pip.size] += pip
-# TFR-- below this line is the original code for noise pip generation ---
+
     for start in pip_start:
-        # make pip template
-        pip_pts = int(pip_dur * Fs) + 1
+        # make pip ttemplate
+        # if pip_dur+pip_start > max(t):
+        #     raise ValueError('Noise train durations exceeds waveform duration')
+        pip_pts = int(pip_dur * Fs)
         if dBSPL is not None:
             pip = dbspl_to_pa(dBSPL) * rng.randn(pip_pts)  # unramped stimulus
         else:
@@ -880,31 +853,13 @@ def pipnoise(t, rt, Fs, dBSPL, pip_dur, pip_start, seed):
         
         ts = int(np.floor(start * Fs))
         pin[ts:ts+pip.size] += pip
-# TFR-- above this line is the original code for noise pip generation ---
 
-
-# TFR--- below this line is the code from clicks that allows timing for a clicktrain ---
-    #     swave = np.zeros(t.size)
-    # if dBSPL is not None:
-    #     amp = dbspl_to_pa(dBSPL)
-    # else:
-    #     amp = 1.0
-    # td = int(np.floor(click_duration * Fs))
-    # nclicks = len(click_starts)
-    # for n in range(nclicks):
-    #     t0s = click_starts[n]  # time for nth click
-    #     t0 = int(np.floor(t0s * Fs))  # index
-    #     if t0+td > t.size:
-    #         raise ValueError('Clicks: train duration exceeds waveform duration')
-    #     swave[t0:t0+td] = amp
-    # return swave
-# TFR--- above this line is the code from clicks that allows timing for a clicktrain ---
     return pin
         
 
-def clicks(t, Fs, dBSPL, click_duration, click_starts):
+def clicks(t, Fs:float=100000., dBSPL:float=80.0, click_duration:float=1e-4, click_starts:float=0.1):
     """
-    Create a waveform with multiple retangular clicks. Output is in
+    Create a waveform with multiple rectangular clicks. Output is in
     Pascals.
     
     Parameters
@@ -1066,7 +1021,7 @@ def modnoise(t, rt, Fs, F0, dur, start, dBSPL, FMod, DMod, phaseshift, seed):
     """
     irpts = int(rt * Fs)
     mxpts = len(t)+1
-    pin = pipnoise(t, rt, Fs, dBSPL, dur, start, seed)
+    pin = pipnoise(rt, Fs, dBSPL, dur, start, seed)
     env = (1 + (DMod/100.0) * np.sin((2*np.pi*FMod*t) - np.pi/2 + phaseshift)) # envelope...
     
     pin = linearramp(pin, mxpts, irpts)
