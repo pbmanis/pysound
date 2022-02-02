@@ -347,6 +347,7 @@ class Controller(object):
         self.clearErrMsg()
         self.prepare_run()
         # show the long term spectrum.
+
         f, Pxx_spec = scipy.signal.periodogram(
             self.wave, self.PS.Stimulus.out_sampleFreq
         )  # , window='flattop', nperseg=8192,
@@ -355,6 +356,13 @@ class Controller(object):
         self.plots["LongTermSpec"].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen("y"))
         # self.plots['LongTermSpec'].setLogMode(x=True, y=False)
 
+        # f, Pxx_spec = scipy.signal.periodogram(self.wave, Fs) #, window='flattop', nperseg=8192,
+        #                # noverlap=512, scaling='spectrum')
+        # self.plots['LongTermSpec'].clear()
+        # self.plots['LongTermSpec'].plot(f[1:], np.sqrt(Pxx_spec)[1:], pen=pg.mkPen('y'))
+
+
+    
     def clearErrMsg(self):
         """
         Reset the error notificatoin to the standard ready indicator
