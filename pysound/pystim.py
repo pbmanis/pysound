@@ -302,7 +302,7 @@ class PyStim:
         # This bit controls/triggers the timing of the stimuli (interstimulus interval)
 
         params = self.RZ5D.getParameterNames('PulseGen1')
-        self.RZ5D.setParameterValue('PulseGen1', 'PulsePeriod', isi)
+        self.RZ5D.setParameterValue('PulseGen1', 'PulsePeriod', stimulus_period)
         self.RZ5D.setParameterValue('PulseGen1', 'DutyCycle', 1.0) # 1 msec pulse
         self.RZ5D.setParameterValue('PulseGen1', 'Enable', 1.0)
         # for param in params:

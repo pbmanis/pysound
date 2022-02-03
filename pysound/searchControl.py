@@ -383,7 +383,7 @@ class BuildGui:
         self.mainwin.setCentralWidget(self.win)
         self.mainwin.show()
         self.mainwin.setWindowTitle("Stim Controller")
-        self.mainwin.setGeometry(100, 100, 1024, 800)
+        self.mainwin.setGeometry(100, 100, 800, 600)
         self.statusBar = QtGui.QStatusBar()
         self.mainwin.setStatusBar(self.statusBar)
         self.statusMessage = QtGui.QLabel("")
