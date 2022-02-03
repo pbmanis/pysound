@@ -7,7 +7,7 @@ record signals.
 
 Output hardware is either an National Instruments DAC card or a system sound card
 If the NI DAC is available, TDT system 3 hardware is assumed as well for the
-attenuators (PA5) and an RP2.1.
+attenuators (PA5) and an RP2.1. or RZ5D
 
 Hardware on the Rig 5 (ABR) system includes:
 RP2.1
@@ -30,21 +30,31 @@ August, 2017
 
 
 """
-TDT manual: 
-Sweep Control
-To use the sweep control circuit constructs the following names are required:
-zSwPeriod: The period of the sweep duration. This is set in OpenWorkbench
-and can not be modified during block acquisition.
-If it is necessary to change this value during the experiment, an
-*asynchronous next sweep control circuit* construct should be used
- See Asynchronous Next Sweep Control, page 324 for more information.
-317
-OpenEx User's Guide
-318
-zSwCount: The maximum number of sweeps before the signal is terminated.
-If this requires manual or external control, the value should be set to -1 through the OpenWorkbench protocol.
+Old:
+    TDT manual system 3: 
+    Sweep Control
+    To use the sweep control circuit constructs the following names are required:
+    zSwPeriod: The period of the sweep duration. This is set in OpenWorkbench
+    and can not be modified during block acquisition.
+    If it is necessary to change this value during the experiment, an
+    *asynchronous next sweep control circuit* construct should be used
+     See Asynchronous Next Sweep Control, page 324 for more information.
+    317
+    OpenEx User's Guide
+    318
+    zSwCount: The maximum number of sweeps before the signal is terminated.
+    If this requires manual or external control, the value should be set to -1 through the OpenWorkbench protocol.
+
+New (Synapse):
+    Sweep cycling is controlled by PulseGen1 clock, which sets the
+    interstimulus interval.
+    The NIDAQ system is using a callback to reload the card at the end of every
+    output, and is retriggered by the PulseGen1 (on digital out 0).
+    The NIDAQ system can be turned off or on independently of the RZ5D state,
+    and can be reloaded in between stimuli as well.
 
 """
+
 import ctypes
 from dataclasses import dataclass, field
 import os
@@ -97,6 +107,7 @@ class Stimulus_Status:
     """
     controller : object = None
     running : bool = False
+    done: bool = False
     index: int = 0
     debugFlag: bool = False
     NI_devicename: str = ''
@@ -104,6 +115,7 @@ class Stimulus_Status:
     required_hardware: list = field(default_factory=defemptylist)
     hardware : list = field(default_factory=defemptylist)
     max_repetitions: int = 10
+
 
 class Stimulus_Parameters:
     """
@@ -288,52 +300,9 @@ class PyStim:
     def show_RZ5D(self):
         print("Device Status: {0:d}".format(self.RZ5DParams["device_status"]))
 
-    def _present_stim(
-        self,
-        waveforms,
-        stimulus_period: float = 1.0,
-        repetitions: int = 1,
-        runmode: str = "Record",
-        protocol: str = "Search",
-        timeout: float = 10.0,
-    ):
-        ##################################################################################
-        # We use the PulseGen1 to write to digital line out 0
-        # This bit controls/triggers the timing of the stimuli (interstimulus interval)
-
-        params = self.RZ5D.getParameterNames('PulseGen1')
-        self.RZ5D.setParameterValue('PulseGen1', 'PulsePeriod', isi)
-        self.RZ5D.setParameterValue('PulseGen1', 'DutyCycle', 1.0) # 1 msec pulse
-        self.RZ5D.setParameterValue('PulseGen1', 'Enable', 1.0)
-        # for param in params:
-        #     info = self.RZ5D.getParameterInfo('PulseGen1', param)
-        #     print(f"Param: {param:s}, Info: {str(info):s}")
-        ##################################################################################
-
-
-        self.prepare_NIDAQ(waveforms, repetitions=repetitions)  # load up NIDAQ to go
-
-        if self.RZ5D.getModeStr() != runmode:
-            # TFR 20101007 removing the block checking/matching/storing stuff- important! 
-            # This needs to be revised for record mode!
-            # if runmode == "Record":
-            #     protocol.replace(" ", "")
-            #     subject = self.RZ5D.getCurrentSubject()
-            #     self.TankName = self.RZ5D.getCurrentTank()
-            #     # tankname=self.RZ5D.getCurrentTank()
-            #     newblock = subject + protocol + "{:03d}".format(self.State.index)
-            #     for checkBlocks in self.RZ5D.getKnownBlocks():
-            #         if os.path.join(self.TankName, newblock) in checkBlocks:
-            #             self.State.index = self.State.index + 1
-            #             newblock = subject + protocol + "{:03d}".format(self.State.index)
-            #     self.RZ5D.setCurrentBlock(newblock)
-            #     self.State.index = self.State.index + 1
-            self.RZ5D.setModeStr(runmode)
-
     def RZ5D_close(self):
         if self.RZ5D.getModeStr() != "Idle":
             self.RZ5D.setModeStr("Idle")
-        # time.sleep(1.0)
 
     def getHardware(self):
         return (self.State.hardware, self.Stimulus.out_sampleFreq, self.Stimulus.in_sampleFreq)
@@ -465,7 +434,10 @@ class PyStim:
                 runmode=runmode,
                 protocol=protocol,
                 timeout=timeout,
-            )  # this sets up the NI card as well.
+            )  # this sets up the NI card.
+            # at this point we return to the main caller
+            # stimuli will be presented and data collected (if in record mode)
+            # The caller needs to check for the done_flag
  
             
             # while time.time()-start_time < deadmantimer:
@@ -489,10 +461,63 @@ class PyStim:
 
             # self.setAttens(atten_left=120)
 
-    def stop_stim(self):
+    def _present_stim(
+        self,
+        waveforms,
+        stimulus_period: float = 1.0,
+        repetitions: int = 1,
+        runmode: str = "Preview",
+        protocol: str = "Search",
+        timeout: float = 10.0,
+    ):
+        """
+        
+        """
+        self.Status.done = False
+        if self.RZ5D.getModeStr() != runmode:  # make sure the rz5d is in the requested mode first
+            self.RZ5D.setModeStr(runmode)
+        ##################################################################################
+        # Set up the stimulus timing
+        # We use the PulseGen1 to write to digital line out 0
+        # This bit controls/triggers the timing of the stimuli (interstimulus interval)
+
+        params = self.RZ5D.getParameterNames('PulseGen1')
+        self.RZ5D.setParameterValue('PulseGen1', 'PulsePeriod', stimulus_period)
+        self.RZ5D.setParameterValue('PulseGen1', 'DutyCycle', 1.0) # 1 msec pulse
+        self.RZ5D.setParameterValue('PulseGen1', 'Enable', 1.0)
+        ##################################################################################
+
+        self.prepare_NIDAQ(waveforms, repetitions=repetitions)  # load up NIDAQ to go
+
+        # TFR 20101007 removing the block checking/matching/storing stuff- important! 
+        # This needs to be revised for record mode!
+        # if runmode == "Record":
+        #     protocol.replace(" ", "")
+        #     subject = self.RZ5D.getCurrentSubject()
+        #     self.TankName = self.RZ5D.getCurrentTank()
+        #     # tankname=self.RZ5D.getCurrentTank()
+        #     newblock = subject + protocol + "{:03d}".format(self.State.index)
+        #     for checkBlocks in self.RZ5D.getKnownBlocks():
+        #         if os.path.join(self.TankName, newblock) in checkBlocks:
+        #             self.State.index = self.State.index + 1
+        #             newblock = subject + protocol + "{:03d}".format(self.State.index)
+        #     self.RZ5D.setCurrentBlock(newblock)
+        #     self.State.index = self.State.index + 1
+
+    def stop_nidaq(self):
+        """
+        Only stop the DAC, not the RZ5D
+        This is used when reloading a new stimulus.
+        """
         if self.State.NI_task is not None:
             self.State.NI_task.close()  # release resources
             self.State.NI_task = None  # need to destroy value
+
+    def stop_recording(self):
+        """
+        Stop the entire system (DAC and RZ5D)
+        """
+        self.stop_nidaq()
         self.RZ5D.setModeStr("Idle")
         self.setAttens(atten_left=120)
 
@@ -515,7 +540,7 @@ class PyStim:
         """
 
         if status != 0:
-            self.stop_stim()
+            self.stop_recording()  # nidaq failure? 
             return False
 
         if self.State.NI_task.is_task_done():
@@ -534,7 +559,8 @@ class PyStim:
             ):
                 # print(counter_elapsed, controller_running, timeout)
                 # print("Stopping NI task... (in re_arm_NIDAQ)")
-                self.stop_stim()
+                self.stop_nidaq()
+                self.Status.done = True
                 return False
         return True
 
@@ -575,16 +601,17 @@ class PyStim:
         Set up and initialize the NIDAQ card for output,
         then let it run and keep up with each task completion
         so it can be retriggered on the next trigger pulse.
+        Configured so that if we are currently running, the run is immediately stopped
+        so we can setup right away.
         """
-
-        self.stop_flag = False
-        self.State.NI_task = None
+        
+        self.stop_nidaq()  # stop the DAC if it is running
         self.waveout = wavel
         self.repetitions = repetitions
+        self.stim_counter = 0
         (self.waveout, clipl) = self.clip(
             self.waveout, 10.0
         )  # clip the wave if it's >10V
-        self.stim_counter = 0
         self.start_time = time.time()
         self.timeout = timeout
         self.load_and_arm_NIDAQ()
@@ -601,9 +628,9 @@ class PyStim:
                 self.audio.terminate()
             except:
                 pass  # possible we never created teh stream...
+        
         if "NIDAQ" in self.State.hardware:
-            if self.State.NI_task is not None:
-                self.State.NI_task.stop()
+            self.stop_nidaq()
 
         if "RP21" in self.State.hardware:
             self.RP21.Halt()
