@@ -55,6 +55,7 @@ New:
 
 """
 
+
 import ctypes
 from dataclasses import dataclass, field
 import os
@@ -63,7 +64,6 @@ import platform
 import struct
 import time
 import numpy as np
-
 from pysound import sound as sound
 
 opsys = platform.system()
@@ -97,24 +97,27 @@ RZ5D_Preview = 2
 RZ5D_Standby = 1
 RZ5D_Run = 3
 
+
 def defemptylist():
     return []
+
 
 @dataclass
 class Stimulus_Status:
     """
     Create data structure for the status of the stimulus generator
     """
-    controller : object = None
-    running : bool = False
+
+    controller: object = None
+    running: bool = False
     stimulus_count: int = 0
     done: bool = False
     index: int = 0
     debugFlag: bool = False
-    NI_devicename: str = ''
+    NI_devicename: str = ""
     NI_task: object = None
     required_hardware: list = field(default_factory=defemptylist)
-    hardware : list = field(default_factory=defemptylist)
+    hardware: list = field(default_factory=defemptylist)
     max_repetitions: int = 10
 
 
@@ -122,17 +125,20 @@ class Stimulus_Parameters:
     """
     Create data structure for the stimulus parameters
     """
-    out_sampleFreq: float = 44100.
-    in_sampleFreq: float = 44100.
+
+    out_sampleFreq: float = 44100.0
+    in_sampleFreq: float = 44100.0
     atten_left: float = 30.0
     atten_right: float = 120.0
 
 
 class PyStim:
-    def __init__(self, required_hardware=["Soundcard"], ni_devicename="dev1", controller=None):
-        """ 
+    def __init__(
+        self, required_hardware=["Soundcard"], ni_devicename="dev1", controller=None
+    ):
+        """
         During initialization, we identify what hardware is available.
-        
+
         Parameters
         ----------
         hdw : list : (Default: ['Soundcard'])
@@ -144,15 +150,15 @@ class PyStim:
         controller : object
             The parent class that provides the controls.
         """
-        
+
         self.State = Stimulus_Status()  # create instance of each data structure (class)
         self.State.required_hardware = required_hardware
         self.State.NI_devicename = ni_devicename
         self.State.controller = controller
-        self.Stimulus = Stimulus_Parameters() 
+        self.Stimulus = Stimulus_Parameters()
         self.find_hardware()
-#            device_info={"devicename": devicename}
-#        )  # population the self.State.hardware list
+        #            device_info={"devicename": devicename}
+        #        )  # population the self.State.hardware list
         self.TankName = []
 
     def find_hardware(self):
@@ -161,11 +167,11 @@ class PyStim:
         For non-windows systems, this just finds the system soundcard for testing
         Otherwise it looks for the requested hardware.
         Keeps track of available hardware in the self.State.hardware list
-        
+
         Parameters
         ----------
         None
-        
+
         """
         if (
             opsys in ["Darwin", "Linux"] or nidaq_available is False
@@ -188,7 +194,9 @@ class PyStim:
 
     def setup_soundcard(self):
         if self.State.debugFlag:
-            print("pysounds.init: OS or available hardware only supports a standard sound card")
+            print(
+                "pysounds.init: OS or available hardware only supports a standard sound card"
+            )
         self.State.hardware.append("pyaudio")
         self.Stimulus.out_sampleFreq = 44100.0
         self.Stimulus.in_sampleFreq = 44100.0
@@ -205,8 +213,8 @@ class PyStim:
         """
         Report some information regardign the nidaq setup
         """
-        
-        print("pysounds.init: found nidaq devices.")
+
+        print("pystim.show_nidaq  Devices:")
         print("devices: %s" % self.NIDevice.devices.device_names)
         # print ("devices: %s" % nidaq.NIDAQ.listDevices())
         print("getDevice: " % self.NIDevice)
@@ -219,7 +227,7 @@ class PyStim:
     def setup_PA5(self, devnum=1):
         """
         active X connection to attenuators
-        
+
         Parameters
         ----------
         devnum : int (default = 1)
@@ -229,7 +237,7 @@ class PyStim:
         a = self.PA5.ConnectPA5("USB", devnum)
         if a > 0:
             if self.State.debugFlag:
-                print("pysounds.init: Connected to PA5 Attenuator %d" % devnum)
+                print("pystim.setup_PA5: Connected to PA5 Attenuator %d" % devnum)
         else:
             if "PA5" in self.State.required_hardware:
                 raise IOError("PA5 requirement requested, but device not found")
@@ -238,10 +246,10 @@ class PyStim:
         self.PA5.SetAtten(120.0)
         return True
 
-    def setup_RP21(self, rcofile:str = ''):
+    def setup_RP21(self, rcofile: str = ""):
         """
         active x connection to the RP2.1 Real-Time Processor
-        
+
         Parameters
         ----------
         rcofile : str (default : '')
@@ -275,7 +283,10 @@ class PyStim:
                 % (self.RP21_rcofile, self.samp_fllist[self.camp_cof_flag])
             )
         else:
-            print("pysounds.init: Error loading RCO file %s, error = %d" % (rcofile, a))
+            print(
+                "pystim.setup_RP21: Error loading RCO file %s, error = %d"
+                % (rcofile, a)
+            )
             return False
         self.Stimulus.out_sampleFreq = self.samp_flist[self.samp_cof_flag]
         self.Stimulus.in_sampleFreq = self.samp_flist[self.samp_cof_flag]
@@ -299,17 +310,21 @@ class PyStim:
         self.RZ5DParams["device status"] = self.RZ5D.getModeStr()
 
     def show_RZ5D(self):
-        print("Device Status: {0:d}".format(self.RZ5DParams["device_status"]))
+        print("RZ5D Device Status: {0:d}".format(self.RZ5DParams["device_status"]))
 
     def get_RZ5D_Mode(self):
-        return(self.RZ5D.getModeStr())
+        return self.RZ5D.getModeStr()
 
     def RZ5D_close(self):
         if self.RZ5D.getModeStr() != "Idle":
             self.RZ5D.setModeStr("Idle")
 
     def getHardware(self):
-        return (self.State.hardware, self.Stimulus.out_sampleFreq, self.Stimulus.in_sampleFreq)
+        return (
+            self.State.hardware,
+            self.Stimulus.out_sampleFreq,
+            self.Stimulus.in_sampleFreq,
+        )
 
     # internal debug flag to control printing of intermediate messages
     def debugOn(self):
@@ -355,11 +370,11 @@ class PyStim:
         storedata=True,
     ):
         """
-        play_sound sends the sound out to an audio device.
-        In the absence of NI card, and TDT system, we (try to) use the system audio device (sound card, etc)
-        The waveform is played in both channels on sound cards, possibly on both channels
-        for other devices if there are 2 channels.
-        
+        play_sound sends the sound out to an audio device. In the absence of NI
+        card, and TDT system, we (try to) use the system audio device (sound
+        card, etc) The waveform is played in both channels on sound cards,
+        possibly on both channels for other devices if there are 2 channels.
+
         Parameters
         ----------
         wavel : numpy array of floats
@@ -377,10 +392,10 @@ class PyStim:
         reps : int (default 1)
             Number of repetitions before returning.
         protocol: str (default "Search")
-            protocol mode to use. 
+            protocol mode to use.
         storedata : bool (default: True)
             flag to force storage of data at end of run
-        
+
         """
         if storedata:
             runmode = "Record"
@@ -393,7 +408,7 @@ class PyStim:
             # CHANNELS = 2
             CHANNELS = 1
             if self.State.debugFlag:
-                print("pysounds.play_sound: samplefreq: %f" % (RATE))
+                print("pystim.play_sound: samplefreq: %f" % (RATE))
             self.stream = self.audio.open(
                 format=FORMAT,
                 channels=CHANNELS,
@@ -405,7 +420,7 @@ class PyStim:
             wave = np.zeros(2 * len(wavel))
             if len(wavel) != len(waver):
                 print(
-                    "pysounds.play_sound: waves not matched in length: %d vs. %d (L,R)"
+                    "pystim.play_sound: waves not matched in length: %d vs. %d (L,R)"
                     % (len(wavel), len(waver))
                 )
                 return
@@ -429,8 +444,8 @@ class PyStim:
         if "RZ5D" in self.State.hardware:
             swcount = -1
             timeout = isi * reps + 1
-             # Start and run the stim/recording for specified # sweeps/time.
-           # self.RZ5D.setModeStr(runmode)
+            # Start and run the stim/recording for specified # sweeps/time.
+            # self.RZ5D.setModeStr(runmode)
             self._present_stim(
                 wavel,
                 stimulus_period=isi,
@@ -442,8 +457,8 @@ class PyStim:
             # at this point we return to the main caller
             # stimuli will be presented and data collected (if in record mode)
             # The caller needs to check for the done_flag
- 
-            
+
+            # I do not think we will need this section -
             # while time.time()-start_time < deadmantimer:
             #     time.sleep(0.01)
             # sweeps_start = self.RZ5D.getSystemStatus()['recordSecs']
@@ -475,25 +490,34 @@ class PyStim:
         timeout: float = 10.0,
     ):
         """
-        
+        Set up and enable the stimulus presentation.
+        We:
+            1. start the RZ5D
+            2. set up the pulse generator
+            3. load and arm the NI card
+            Everything after that is controlled by synapse and hardware
+            triggers, so we just return.
         """
         self.State.done = False
-        if self.RZ5D.getModeStr() != runmode:  # make sure the rz5d is in the requested mode first
+        if (
+            self.RZ5D.getModeStr() != runmode
+        ):  # make sure the rz5d is in the requested mode first
             self.RZ5D.setModeStr(runmode)
         ##################################################################################
         # Set up the stimulus timing
         # We use the PulseGen1 to write to digital line out 0
         # This bit controls/triggers the timing of the stimuli (interstimulus interval)
 
-        params = self.RZ5D.getParameterNames('PulseGen1')
-        self.RZ5D.setParameterValue('PulseGen1', 'PulsePeriod', stimulus_period)
-        self.RZ5D.setParameterValue('PulseGen1', 'DutyCycle', 1.0) # 1 msec pulse
-        self.RZ5D.setParameterValue('PulseGen1', 'Enable', 1.0)
+        params = self.RZ5D.getParameterNames("PulseGen1")
+        self.RZ5D.setParameterValue("PulseGen1", "PulsePeriod", stimulus_period)
+        self.RZ5D.setParameterValue("PulseGen1", "DutyCycle", 1.0)  # 1 msec pulse
+        self.RZ5D.setParameterValue("PulseGen1", "Enable", 1.0)
         ##################################################################################
 
-        self.prepare_NIDAQ(waveforms, repetitions=repetitions)  # load up NIDAQ to go
+        # load up NIDAQ to go
+        self.prepare_NIDAQ(waveforms, repetitions=repetitions)
 
-        # TFR 20101007 removing the block checking/matching/storing stuff- important! 
+        # TFR 20101007 removing the block checking/matching/storing stuff- important!
         # This needs to be revised for record mode!
         # if runmode == "Record":
         #     protocol.replace(" ", "")
@@ -533,20 +557,21 @@ class PyStim:
         next trigger pulse
         """
         self.State.NI_task.write(self.waveout, auto_start=False)
-      #  self.State.NI_task.triggers.start_trigger.trig_type.DIGITAL_EDGE
+        #  self.State.NI_task.triggers.start_trigger.trig_type.DIGITAL_EDGE
         self.State.NI_task.triggers.start_trigger.cfg_dig_edge_start_trig(
-            trigger_source="/Dev1/PFI0", trigger_edge=Edge.RISING,
+            trigger_source="/Dev1/PFI0",
+            trigger_edge=Edge.RISING,
         )
         self.State.running = True
 
     def re_arm_NIDAQ(self, task_handle, status, callback_data):
         """
-        Callback for when the daq is done... 
+        Callback for when the daq is done...
         Re arm the dac card and start the task again
         """
 
         if status != 0:
-            self.stop_recording()  # nidaq failure? 
+            self.stop_recording()  # nidaq failure?
             return False
 
         if self.State.NI_task.is_task_done():
@@ -554,15 +579,11 @@ class PyStim:
             self.arm_NIDAQ()  # reload
             self.State.NI_task.start()
             self.State.stimulus_count += 1
-     
+
             counter_elapsed = self.State.stimulus_count > self.repetitions
-         #   controller_running = self.State.controller.running
-            timeout = False # (time.time() - self.start_time) > self.timeout
-            if (
-                counter_elapsed
-                or (not self.State.running)
-                or timeout
-            ):
+            #   controller_running = self.State.controller.running
+            timeout = False  # (time.time() - self.start_time) > self.timeout
+            if counter_elapsed or (not self.State.running) or timeout:
                 self.stop_nidaq()
                 self.State.done = True
                 return False
@@ -570,11 +591,11 @@ class PyStim:
 
     def load_and_arm_NIDAQ(self):
         """
-        Initial setup of NI card for AO. 
+        Initial setup of NI card for AO.
         Creates a task for the card, sets parameters, clock rate,
-        and does setup if needed. 
+        and does setup if needed.
         A callback is registered so that when the task is done, the
-        board is re-armed for the next trigger. 
+        board is re-armed for the next trigger.
         This does not block the GUI.
         """
         self.State.NI_task = nidaqmx.task.Task("NI_DAC_out")
@@ -594,7 +615,7 @@ class PyStim:
         # if not self.State.running:
         #     self.State.NI_task.stop()
         #     return False
-        self.arm_NIDAQ()   # setup the DAC card
+        self.arm_NIDAQ()  # setup the DAC card
         self.State.NI_task.start()  # and start it
         return True
 
@@ -608,7 +629,7 @@ class PyStim:
         Configured so that if we are currently running, the run is immediately stopped
         so we can setup right away.
         """
-        
+
         self.stop_nidaq()  # stop the DAC if it is running
         self.waveout = wavel
         self.repetitions = repetitions
@@ -632,7 +653,7 @@ class PyStim:
                 self.audio.terminate()
             except:
                 pass  # possible we never created teh stream...
-        
+
         if "NIDAQ" in self.State.hardware:
             self.stop_nidaq()
 
@@ -646,7 +667,7 @@ class PyStim:
     def clip(self, data, maxval):
         if self.State.debugFlag:
             print(
-                "pysounds.clip: max(data) = %f, %f and maxval = %f"
+                "pystim.clip: max(data) = %f, %f and maxval = %f"
                 % (max(data), min(data), maxval)
             )
         clip = 0
@@ -656,7 +677,7 @@ class PyStim:
             data[ul] = maxval
             clip = 1  # set a flag in case we want to know
             if self.State.debugFlag:
-                print("pysounds.clip: clipping %d positive points" % (len(ul)))
+                print("pystim.clip: clipping %d positive points" % (len(ul)))
         minval = -maxval
         v = np.where(data <= minval)
         vl = list(np.transpose(v).flat)
@@ -664,10 +685,10 @@ class PyStim:
             data[vl] = minval
             clip = 1
             if self.State.debugFlag:
-                print("pysounds.clip: clipping %d negative points" % (len(vl)))
+                print("pystim.clip: clipping %d negative points" % (len(vl)))
         if self.State.debugFlag:
             print(
-                "pysounds.clip: clipped max(data) = %f, %f and maxval = %f"
+                "pystims.clip: clipped max(data) = %f, %f and maxval = %f"
                 % (np.max(data), np.min(data), maxval)
             )
         return (data, clip)
