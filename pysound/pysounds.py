@@ -1,22 +1,21 @@
-# pysounds: a python Class for interacting with hardware to produce sounds and
-# record signals.
-#
-# Output hardware is either an National Instruments DAC card or a system sound card
-# If the NI DAC is available, TDT system 3 hardware is assumed as well for the
-# attenuators (PA5) and an RP2.1 to input the startle response.
-# Second channel of RP2.1 is collected as well. Use this for a microphone input
-# to monitor sound in the chamber.
-# If the system sound card is used, stimuli are generated and microphone input is
-# collected, but they are not simultaneous. This is used only for testing.
-#
+"""
+pysounds: a python Class for interacting with hardware to produce sounds and
+record signals.
 
-# 12/17/2008 Paul B. Manis, Ph.D.
-# UNC Chapel Hill
-# Department of Otolaryngology/Head and Neck Surgery
-# Supported by NIH Grants DC000425-22 and DC004551-07 to PBM.
-# Copyright Paul Manis, 2008, 2009
-#
+Output hardware is either an National Instruments DAC card or a system sound
+card. If the NI DAC is available, TDT system 3 hardware is assumed as well for
+the# attenuators (PA5) and an RP2.1 to input the startle response. Second
+channel of RP2.1 is collected as well. Use this for a microphone input to
+monitor sound in the chamber. If the system sound card is used, stimuli are
+generated and microphone input is collected, but they are not simultaneous. This
+is used only for testing.
 
+
+12/17/2008 Paul B. Manis, Ph.D. UNC Chapel Hill Department of
+Otolaryngology/Head and Neck Surgery Supported by NIH Grants DC000425-22 and
+DC004551-07 to PBM. Copyright Paul Manis, 2008, 2009
+
+"""
 
 import ctypes
 import platform
@@ -32,8 +31,10 @@ nidaq_available = False
 if osname == "Windows":
     import win32com.client
     import win32com
+
     try:
         import nidaq
+
         nidaq_avaiable = True
     except:
         pass
@@ -48,15 +49,17 @@ REF_MAG_dB = 100.0  # right speaker is mag... different scaling.
 class Pysounds:
     def __init__(self):
         ################################################################################
-        # the first thing we must do is find out what hardware is available and what
-        # system we are on.
+        # the first thing we must do is find out what hardware is available and
+        # what system we are on.
         ################################################################################
         self.debugFlag = False
         self.hardware = []  # list of hardware found on this system
         self.find_hardware()
 
     def find_hardware(self):
-        if osname != "Windows" or not nidaq_available:  # If not on a Windows system, just set up soundcard
+        if (
+            osname != "Windows" or not nidaq_available
+        ):  # If not on a Windows system, just set up soundcard
             self.setup_soundcard()
             self.hardware.append("Soundcard")
         else:
@@ -409,8 +412,8 @@ class Pysounds:
             (wavel, clipl) = self.clip(wavel, 10.0)
             (waver, clipr) = self.clip(waver, 10.0)
 
-            daqwave[0:len(wavel)] = wavel
-            daqwave[len(wavel):] = waver
+            daqwave[0 : len(wavel)] = wavel
+            daqwave[len(wavel) :] = waver
             # concatenate channels (using "groupbychannel" in writeanalogf64)
             dur = wlen / float(samplefreq)
             self.task.write(daqwave)
@@ -420,7 +423,9 @@ class Pysounds:
                 if a <= 0:
                     print("pysounds.playSound: Unable to clear RP2.1")
                     return
-                a = self.RP21.LoadCOFsf(r"C:\pyStartle\startle2.rco", self.samp_cof_flag)
+                a = self.RP21.LoadCOFsf(
+                    r"C:\pyStartle\startle2.rco", self.samp_cof_flag
+                )
                 if a > 0 and self.debugFlag:
                     print(
                         "pysounds.playSound: Connected to TDT RP2.1 and startle2.rco is loaded"
@@ -434,7 +439,9 @@ class Pysounds:
                     return
                 self.trueFreq = self.RP21.GetSFreq()
                 Ndata = ceil(0.5 * (dur + postduration) * self.trueFreq)
-                self.RP21.SetTagVal("REC_Size", Ndata)  # old version using serbuf  -- with
+                self.RP21.SetTagVal(
+                    "REC_Size", Ndata
+                )  # old version using serbuf  -- with
                 # new version using SerialBuf, can't set data size - it is fixed.
                 # however, old version could not read the data size tag value, so
                 # could not determine when buffer was full/acquisition was done.
@@ -547,6 +554,7 @@ class Pysounds:
             "@" + "f" * size * channels, input_str_buffer
         )
         return np.array(input_float_buffer)
+
 
 if __name__ == "__main__":
     P = Pysounds()
