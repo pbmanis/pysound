@@ -10,6 +10,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 pysound_venv/	# working environment for testing only
+ps_venv/
 build/
 develop-eggs/
 dist/
