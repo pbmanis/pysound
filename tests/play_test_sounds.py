@@ -43,7 +43,8 @@ def play(args):
     PS = pystim.PyStim()
 
     cf = 2e3
-    Fs = PS.out_sampleFreq  # sample frequency
+    # print(dir(PS))
+    Fs = PS.Stimulus.out_sampleFreq  # sample frequency
     level = 80.0
     seed = 34978
     fmod = 20.0
@@ -151,7 +152,7 @@ def play(args):
                 f0=cf,
                 dbspl=level,
                 pip_duration=1.8,
-                pip_start=[10e-3],
+                pip_starts=[10e-3],
                 ramp_duration=2.5e-3,
                 fmod=fmod,
                 dmod=dmod,
