@@ -24,7 +24,7 @@ import scipy.io.wavfile as wav
 from collections import OrderedDict
 # from backports import configparser
 import pyqtgraph as pg
-from PyQt5 import QtGui, QtCore
+from pyqtgraph import QtGui, QtCore, QtWidgets
 from pyqtgraph.parametertree import Parameter, ParameterTree
 from pysound import pystim
 from pysound import Utility
@@ -38,7 +38,7 @@ pp = pprint.PrettyPrinter(indent=4)
 
 class Controller(object):
     def __init__(self, ptreedata, plots, img, maingui):
-        self.PS = pystim.PyStim(hdw=['PA5', 'NIDAQ', 'RZ5D'])# , 'RP21'])
+        self.PS = pystim.PyStim(required_hardware=['PA5', 'NIDAQ', 'RZ5D'])# , 'RP21'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
@@ -49,6 +49,7 @@ class Controller(object):
         self.ProtocolNumber = 0
         self.TDTinfo = tdt.SynapseAPI()
         self.setAllParameters(ptreedata)
+        self.wave=np.zeros(10)
 
         # Special for clickable map
         # we don't save the data so we don't directly program these - they change with the point clicked in the map
@@ -177,7 +178,7 @@ class Controller(object):
         self.maingui.label_status.setText('Running')
         self.maingui.label_trialctr.setText('Trial: %04d' % 0)
         
-        self.TrialTimer.start(0.1) # start (almost) right away
+        self.TrialTimer.start(100) # start (almost) right away  - time is in msec
 
     def pause_run(self):
         """
@@ -236,7 +237,7 @@ class Controller(object):
             # time.sleep(2.0)
             time.sleep(0.5)
             self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
+                samplefreq=self.PS.Stimulus.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
                 reps=self.CPars['Stimulus']['Repetitions'], 
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
@@ -249,7 +250,7 @@ class Controller(object):
             self.StimRecord['savedata'] = False
             print((self.StimRecord['savedata']))
             self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
+                samplefreq=self.PS.Stimulus.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
                 reps=self.CPars['Stimulus']['Repetitions'],
                 attns=self.convert_spl_attn(spl), storedata=self.StimRecord['savedata'])
@@ -262,7 +263,7 @@ class Controller(object):
             # print('spl:', spl)
             # print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
             self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
+                samplefreq=self.PS.Stimulus.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
                 reps=self.CPars['Stimulus']['Repetitions'], protocol=protocol, attns=self.convert_spl_attn(spl))
 
@@ -273,15 +274,15 @@ class Controller(object):
             freq = self.stim_vary['Frequency'][self.trial_count]
             if self.lastfreq is None or freq != self.lastfreq:  # determine if we need to calculate the waveform
                 self.lastfreq  = freq
-                wave = sound.TonePip(rate=self.PS.out_sampleFreq,
+                wave = sound.TonePip(rate=self.PS.Stimulus.out_sampleFreq,
                             duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=freq*1000., dbspl=spl, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'], pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
                 self.wave = self.map_voltage(protocol, wave.sound, clip=True)
             print(('Protocol {0:s}  freq: {1:6.3f}  spl: {2:3.1f}'.format(protocol, freq, spl)))
             self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
+                samplefreq=self.PS.Stimulus.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'], reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol, 
                 attns=self.convert_spl_attn(spl))
 
@@ -290,7 +291,7 @@ class Controller(object):
             time.sleep(0.5)
             spl = self.CPars['Stimulus']['Attenuator']
             self.PS.play_sound(self.wave, self.wave,
-                samplefreq=self.PS.out_sampleFreq,
+                samplefreq=self.PS.Stimulus.out_sampleFreq,
                 isi=self.CPars['Stimulus']['Interstimulus Interval'],
                 reps=self.CPars['Stimulus']['Repetitions'],protocol=protocol,  attns=self.convert_spl_attn(spl))
         
@@ -423,7 +424,7 @@ class Controller(object):
         -------
         Nothing
         """
-        Fs = self.PS.out_sampleFreq  # sample frequency
+        Fs = self.PS.Stimulus.out_sampleFreq  # sample frequency
         stim = self.CPars['Stimulus']['Protocol']
 #        level = None  # level is dbspl normally for models, but set to None for TDT (5V tone reference)
         seed = 32767
@@ -449,14 +450,16 @@ class Controller(object):
                 self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.TonePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=freq, dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'], 
+                            pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
 
         elif stim in ['One Tone']:
             self.total_trials = 1
             wave = sound.TonePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=self.tone_frequency*1000, dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'], 
+                            pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000)
 
         elif stim in ['Tone SAM']:
@@ -464,7 +467,8 @@ class Controller(object):
                 freq = self.CPars['Stimulus']['Tone Frequency']*1000.
             wave = sound.SAMTone(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=freq, dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'],
+                            pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
                             fmod=self.CPars['Modulation/CMMR']['Frequency'],
                             dmod=self.CPars['Modulation/CMMR']['Depth'], seed=seed)
@@ -481,7 +485,8 @@ class Controller(object):
             self.total_trials = len(self.stim_vary['Intensity'])
             wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0.2,
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'], 
+                            pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
                             fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
         elif stim in ['Noise Search']:
@@ -490,13 +495,13 @@ class Controller(object):
                 wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0,
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                             pip_duration=self.CPars['Noise Train']['Duration'],
-                            pip_start=1e-3*np.arange(self.CPars['Stimulus']['Delay']*1000.,howmany,self.CPars['Noise Train']['Interval']),
+                            pip_starts=1e-3*np.arange(self.CPars['Stimulus']['Delay']*1000.,howmany,self.CPars['Noise Train']['Interval']),
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
             else:
                 wave = sound.NoisePip(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay']+0,
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
                             pip_duration=self.CPars['Noise Train']['Duration'],
-                            pip_start=np.arange(self.CPars['Stimulus']['Delay'],1),
+                            pip_starts=np.arange(self.CPars['Stimulus']['Delay'],1),
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
             
         # elif stim in ['Noise RI', 'Noise Search']:
@@ -511,7 +516,8 @@ class Controller(object):
         elif stim in ['Noise SAM']:
             wave = sound.SAMNoise(rate=Fs, duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'], 
+                            pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
                             fmod=self.CPars['Modulation/CMMR']['Frequency'],
                             dmod=self.CPars['Modulation/CMMR']['Depth'], seed=seed)
@@ -531,7 +537,8 @@ class Controller(object):
             wave = sound.NoiseBandPip(rate=Fs,
                             duration=self.CPars['Stimulus']['Duration']+self.CPars['Stimulus']['Delay'],
                             f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level, 
-                            pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
+                            pip_duration=self.CPars['Stimulus']['Duration'], 
+                            pip_starts=[self.CPars['Stimulus']['Delay']],
                             ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
                             seed=seed,
                             type=self.CPars['Noise Bands']['Type'],
@@ -550,7 +557,7 @@ class Controller(object):
             wave = sound.ComodulationMasking(rate=Fs, duration=self.CPars['Stimulus']['Duration']+
                                             self.CPars['Stimulus']['Delay'],
                         pip_duration=self.CPars['Stimulus']['Duration'],
-                        pip_start=[self.CPars['Stimulus']['Delay']],
+                        pip_starts=[self.CPars['Stimulus']['Delay']],
                         f0=self.CPars['Stimulus']['Tone Frequency']*1000.,
                         ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
                         dbspl=level,
@@ -573,7 +580,7 @@ class Controller(object):
             wave = sound.RandomSpectrumShape(rate=Fs, duration=0.5, dbspl=level,
                         ramp='linear', ramp_duration=1e-2, f0=self.CPars['RSS Params']['CF']*1000,
                         pip_duration=self.CPars['Stimulus']['Duration'],
-                        pip_start=[self.CPars['Stimulus']['Delay']],
+                        pip_starts=[self.CPars['Stimulus']['Delay']],
                         amp_group_size=self.CPars['RSS Params']['Grouping'],
                         amp_sd=self.CPars['RSS Params']['Level SD'],
                         spacing=self.CPars['RSS Params']['Spacing'],
@@ -611,7 +618,7 @@ class Controller(object):
         """
         self.clearErrMsg()
         self.prepare_run()
-        Fs = self.PS.out_sampleFreq
+        Fs = self.PS.Stimulus.out_sampleFreq
         # show the long term spectrum.
         f, Pxx_spec = scipy.signal.periodogram(self.wave, Fs) #, window='flattop', nperseg=8192,
                        # noverlap=512, scaling='spectrum')
@@ -655,11 +662,10 @@ class Controller(object):
 class BuildGui():
     def __init__(self):
         self.app = pg.mkQApp()
-        self.mainwin = QtGui.QMainWindow()
-        self.win = QtGui.QWidget()
-        self.layout = QtGui.QGridLayout()
-        self.win.setLayout(self.layout)
-        self.mainwin.setCentralWidget(self.win)
+        self.mainwin = pg.GraphicsLayoutWidget()
+        self.layout = QtWidgets.QGridLayout()
+        self.mainwin.setLayout(self.layout)
+        # self.mainwin.setCentralWidget(self.win)
         self.mainwin.show()
         self.mainwin.setWindowTitle('Stim Controller')
         self.mainwin.setGeometry( 100 , 100 , 1024 , 800)
@@ -668,11 +674,11 @@ class BuildGui():
         
         # self.TT = TDT.TDTTankInterface()
         # print('self.TT.available: ', self.TT.available)
-        self.statusBar = QtGui.QStatusBar()
-        self.mainwin.setStatusBar(self.statusBar)
-        self.statusMessage = QtGui.QLabel('')
+        self.statusBar = QtWidgets.QStatusBar()
+        self.mainwin.setStatusTip("my status tip")
+        self.statusMessage = QtWidgets.QLabel('')
         self.statusBar.addWidget(self.statusMessage)
-        self.permStatusMessage = QtGui.QLabel('<b><font color="#00FF00">Ready</b>')
+        self.permStatusMessage = QtWidgets.QLabel('<b><font color="#00FF00">Ready</b>')
         self.statusBar.addPermanentWidget(self.permStatusMessage)
         
 
@@ -705,7 +711,7 @@ class BuildGui():
         # Define parameters that control aquisition and buttons...
         params = [
             {'name': 'Stimulus', 'type': 'group', 'children': [
-                {'name': 'Protocol', 'type': 'list', 'values': ['Noise Search', 'Tone Search', 'Click Search',
+                {'name': 'Protocol', 'type': 'list', 'limits': ['Noise Search', 'Tone Search', 'Click Search',
                         'Tone RI', 'Single Tone', 'Noise RI', 'FRA', 'Clicks', 
                         'CMMR', 'RSS', 'DMR', 'SSN',
                         'Tone SAM', 'Noise SAM', 'FM Sweep',
@@ -747,7 +753,7 @@ class BuildGui():
              {'name': 'FMSweep', 'type': 'group', 'expanded': False, 'children': [
                   {'name': 'Duration', 'type': 'float', 'value': 0.5, 'step': 0.05, 
                       'limits': [5e-3, 10], 'suffix': 's', 'default': 0.5},
-                  {'name': 'Ramp Type', 'type': 'list', 'values': ['linear', 'logarithmic'], 'value': 'linear'},
+                  {'name': 'Ramp Type', 'type': 'list', 'limits': ['linear', 'logarithmic'], 'value': 'linear'},
                   {'name': 'Freq Start', 'type': 'float', 'value': 4, 'step': 1, 'limits': [1., 100.0],
                     'default': 4},
                   {'name': 'Freq End', 'type': 'float', 'value': 48, 'step': 1, 'limits': [1., 100.0],
@@ -759,8 +765,8 @@ class BuildGui():
                     'suffix': 'Hz', 'default': 40.0},
                   {'name': 'Depth', 'type': 'float', 'value': 50.0, 'step': 5.0, 'limits': [0.0, 200.0],
                     'suffix': '%', 'default': 50.},
-                  {'name': 'CMMR Flanking Type', 'type': 'list', 'values': ['None', 'MultiTone', 'NBnoise'], 'value': 'MultiTone'},
-                  {'name': 'CMMR Flanking Phase', 'type': 'list', 'values': ['Comodulated', 'Codeviant', 'Random'],
+                  {'name': 'CMMR Flanking Type', 'type': 'list', 'limits': ['None', 'MultiTone', 'NBnoise'], 'value': 'MultiTone'},
+                  {'name': 'CMMR Flanking Phase', 'type': 'list', 'limits': ['Comodulated', 'Codeviant', 'Random'],
                    'value': 'Comodulated'},
                   {'name': 'CMMR Flanking Bands', 'type': 'int', 'value': 2, 'step': 1, 'limits': [0, 10],
                    'default': 2},
@@ -780,7 +786,7 @@ class BuildGui():
                    'default': 3.0},
              ]},
              {'name': 'Noise Bands', 'type': 'group', 'expanded': False, 'children': [
-                 {'name': 'Type', 'type': 'list', 'values': ['Bandpass', 'BP+Notch'],
+                 {'name': 'Type', 'type': 'list', 'limits': ['Bandpass', 'BP+Notch'],
                   'value': 'Bandpass'},
                  {'name': 'Notch BW', 'type': 'float', 'value': 1.0, 'step': 1.0, 'limits': [0.05, 10.],
                  'suffix': 'kHz', 'default': 1.0},
@@ -831,22 +837,22 @@ class BuildGui():
        #  exit(1)
         # now build the ui
         # hardwired buttons
-        self.btn_waveform = QtGui.QPushButton("Wave")
-        self.btn_spectrum = QtGui.QPushButton("Spectrum")
-        self.btn_run = QtGui.QPushButton("Run")
-        self.btn_pause = QtGui.QPushButton("Pause")
-        self.btn_continue = QtGui.QPushButton("Continue")
-        self.btn_stop = QtGui.QPushButton("Stop")
-        self.btn_quit = QtGui.QPushButton("Quit")
-        self.btn_tdt = QtGui.QPushButton("TDT Tank")
-        self.label_status = QtGui.QLabel('Stopped')
-        self.label_trialctr = QtGui.QLabel('Trial: 0')
+        self.btn_waveform = QtWidgets.QPushButton("Wave")
+        self.btn_spectrum = QtWidgets.QPushButton("Spectrum")
+        self.btn_run = QtWidgets.QPushButton("Run")
+        self.btn_pause = QtWidgets.QPushButton("Pause")
+        self.btn_continue = QtWidgets.QPushButton("Continue")
+        self.btn_stop = QtWidgets.QPushButton("Stop")
+        self.btn_quit = QtWidgets.QPushButton("Quit")
+        self.btn_tdt = QtWidgets.QPushButton("TDT Tank")
+        self.label_status = QtWidgets.QLabel('Stopped')
+        self.label_trialctr = QtWidgets.QLabel('Trial: 0')
         self.label_status.sizeHint = QtCore.QSize(100, 20)
         self.label_trialctr.setAutoFillBackground(True)
         self.label_trialctr.sizeHint = QtCore.QSize(100, 20)
-        self.spect_check = QtGui.QCheckBox('Spectrogram')
+        self.spect_check = QtWidgets.QCheckBox('Spectrogram')
         self.spect_check.setChecked(False)  # just be sure.
-        hbox = QtGui.QGridLayout()
+        hbox = QtWidgets.QGridLayout()
         hbox.setColumnStretch(0, 1)
         hbox.setColumnStretch(1, 1)
         hbox.setColumnStretch(2, 1)
@@ -1048,7 +1054,7 @@ def main():
     ## Start Qt event loop unless running in interactive mode.
     ## Event loop will wait for the GUI to activate the updater and start sampling.
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+        QtGui.QGuiApplication.instance().exec()
     gui.controller.quit()
     
      
