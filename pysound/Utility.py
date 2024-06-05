@@ -437,19 +437,19 @@ def long_Eval(line):
             sp = ""
             continue
         sp = sp + c
-        if c is ":":
+        if c == ":":
             colonFound = True
             continue
-        if c is "(" or c is "[":
+        if c == "(" or c == "[":
             inpunct += 1
             continue
-        if c is ")" or c is "]":
+        if c == ")" or c == "]":
             inpunct -= 1
             continue
-        if c is "'" and inquote:
+        if c == "'" and inquote:
             inquote = False
             continue
-        if c is "'" and not inquote:
+        if c == "'" and not inquote:
             inquote = True
     return u
 
@@ -708,7 +708,7 @@ def findspikes(
     sp = tuple(sp)  # convert to tuple
     if sp is ():
         return st  # nothing detected
-    if mode is "schmitt":  # normal operating mode is fixed voltage threshold
+    if mode == "schmitt":  # normal operating mode is fixed voltage threshold
         for k in sp:
             x = xt[k - 1 : k + 1]
             y = v[k - 1 : k + 1]
@@ -719,7 +719,7 @@ def findspikes(
             else:
                 st = np.append(st, x[1])
 
-    elif mode is "peak":
+    elif mode == "peak":
         pkwidth = 1.0  # in same units as dt  - usually msec
         kpkw = int(pkwidth / dt)
         z = (np.array(np.where(np.diff(spv) > 1)[0]) + 1).tolist()
@@ -1154,7 +1154,7 @@ def seqparse(sequence):
     )  # remove all spaces - nice to read, not needed to calculate
     sequence = str(sequence)  # make sure we have a nice string
     (seq2, sep, remain) = sequence.partition("&")  # find and return nested sequences
-    while seq2 is not "":
+    while seq2!= "":
         try:
             (oneseq, onetarget) = recparse(seq2)
             seq.append(oneseq)
@@ -1223,7 +1223,7 @@ def recparse(cmdstr):
     elif mode == "t":  # just repeat the first value
         recs = n1
     elif mode == "n":  # use the number of steps, not the step size
-        if skip is 1.0:
+        if skip == 1.0:
             sk = n2 - n1
         else:
             sk = (n2 - n1) / (skip - 1.0)
