@@ -187,10 +187,11 @@ class PyStim:
                 "c:\\TDT\\OpenEx\\MyProjects\\Tetrode\\RCOCircuits\\tone_search.rcx"
             ):
                 self.State.hardware.append("RP21")
-            if "PA5" in self.State.required_hardware and self.setup_PA5():
-                self.State.hardware.append("PA5")
             if "RZ5D" in self.State.required_hardware and self.setup_RZ5D():
                 self.State.hardware.append("RZ5D")
+            if "PA5" in self.State.required_hardware and self.setup_PA5(devnum=0):
+                self.State.hardware.append("PA5")
+
 
     def setup_soundcard(self):
         if self.State.debugFlag:
@@ -240,7 +241,7 @@ class PyStim:
                 print("pystim.setup_PA5: Connected to PA5 Attenuator %d" % devnum)
         else:
             if "PA5" in self.State.required_hardware:
-                raise IOError("PA5 requirement requested, but device not found")
+                raise IOError(f"PA5 requirement requested, but device  {devnum:d} not found")
             else:
                 return False
         self.PA5.SetAtten(120.0)
@@ -402,6 +403,7 @@ class PyStim:
         else:
             runmode = "Preview"
         if "pyaudio" in self.State.hardware:
+            print("Playing through pyaudio, system sound card")
             self.audio = pyaudio.PyAudio()
             chunk = 1024
             FORMAT = pyaudio.paFloat32
@@ -439,9 +441,11 @@ class PyStim:
             return
 
         if "PA5" in self.State.hardware:
+            print("setting PA5")
             self.setAttens(atten_left=attns, atten_right=attns)
 
         if "RZ5D" in self.State.hardware:
+            print("Accessing RZ5D")
             swcount = -1
             timeout = isi * reps + 1
             # Start and run the stim/recording for specified # sweeps/time.
@@ -498,6 +502,7 @@ class PyStim:
             Everything after that is controlled by synapse and hardware
             triggers, so we just return.
         """
+        print("present_stim: RZ5D")
         self.State.done = False
         if (
             self.RZ5D.getModeStr() != runmode
