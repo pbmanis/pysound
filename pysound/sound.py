@@ -254,7 +254,7 @@ class NoisePip(Sound):
     pip_duration : float
         Duration of each pip including ramp time. Must be at least
         2 * ramp_duration.
-    pip_start : array-like
+    pip_starts : array-like
         Start times of each pip
     ramp_duration : float
         Duration of a single ramp period (from minimum to maximum).
