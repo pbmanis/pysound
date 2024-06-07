@@ -8,30 +8,34 @@ Relies on pystim.py for hardware interactions.
 Operates in two modes for output intensity:
 
 Atten mode: the levels refer to attenuation in Db, no correction for stimlus
-SPL mode : the levels are corrected by the system calibration on a per frequency basis
+SPL mode : the levels are corrected by the system calibration on a per frequency basis.
+    Cannot currently be done for broadband stimuli.
+
 Currently, only the atten mode is supported. 
 
+pbm 2021-2024, tfr 2019-2020
 """
 
-import sys
-import os
 import datetime
-import numpy as np
-import scipy.signal
-import time
+import os
+from pathlib import Path
 import pickle
-import scipy.io.wavfile as wav
+import pprint
+import sys
+import time
 from collections import OrderedDict
+
+import numpy as np
 # from backports import configparser
 import pyqtgraph as pg
-from pyqtgraph import QtGui, QtCore, QtWidgets
-from pyqtgraph.parametertree import Parameter, ParameterTree
-from pysound import pystim
-from pysound import Utility
-from pysound import sound
-import pprint
+import scipy.io.wavfile as wav
+import scipy.signal
 # import TDTTankInterface as TDT
-import tdt #necessary for interacting with the tanks in Synapse
+import tdt  # necessary for interacting with the tanks in Synapse
+from pyqtgraph import QtCore, QtGui, QtWidgets
+from pyqtgraph.parametertree import Parameter, ParameterTree
+
+from pysound import Utility, pystim, sound
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -52,7 +56,8 @@ class Controller(object):
         self.wave=np.zeros(10)
 
         # Special for clickable map
-        # we don't save the data so we don't directly program these - they change with the point clicked in the map
+        # we don't save the data so we don't directly program these -
+        # they change with the point clicked in the map
 
         self.attn = 35
         self.tone_frequency = 4.0 # khz 
@@ -153,7 +158,7 @@ class Controller(object):
         
         sweepdur = nr*isi
         if sweepdur > 0.8*iti:
-            msgbox = QtGui.QMessageBox()
+            msgbox = QtGui.QWidgets.QMessageBox()
             msgbox.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
             msgbox.setText('<b><fontcolor: 0xff0000> Stimuli nreps*isi must be < 80\% of iti</b>')
             msgbox.exec_()
@@ -344,7 +349,7 @@ class Controller(object):
             # print('Stimulus info: ',self.BlockString)
             self.BlockString= self.StimRecord['Trials'][0]['protocol']
             self.BlockString.replace('  ','')
-            filename=os.path.join(self.PS.TankName,'%s.p' % self.BlockString)
+            filename=Path(self.PS.TankName,f"{self.BlockString:s}.p")
             fh = open(filename,'wb')
             # fh = open(os.path.join(self.maingui.TT.tank_directory,
             #         'Protocol_%s_Blocks_%d-%d.p' % (self.CPars['Stimulus']['Protocol'], 
@@ -523,8 +528,16 @@ class Controller(object):
                             dmod=self.CPars['Modulation/CMMR']['Depth'], seed=seed)
 
         elif stim in ['FRA']: # frequency response area
-            splseq = Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]
-            freqseq = Utility.seqparse(self.CPars['Stimulus']['Frequencies'])[0][0]
+            try:
+                splseq = Utility.seqparse(self.CPars['Stimulus']['Intensities'])[0][0]
+                freqseq = Utility.seqparse(self.CPars['Stimulus']['Frequencies'])[0][0]
+            except:
+                print("SPLS: ", self.CPars['Stimulus']['Intensities'])
+                print(Utility.seqparse(self.CPars['Stimulus']['Intensities']))
+                print("Freqs: ", self.CPars['Stimulus']['Frequencies'])
+                print(Utility.seqparse(self.CPars['Stimulus']['Frequencies']))
+                raise ValueError("Unable to parse FRA/Map space")
+            
             mat_spl, mat_freq = np.meshgrid(splseq, freqseq)
             self.stim_vary = {'Intensity': mat_spl.ravel(), 'Frequency': mat_freq.ravel()}
             self.total_trials = len(mat_spl.ravel())
@@ -609,6 +622,21 @@ class Controller(object):
         self.plots['Wave'].clear()
         self.plots['Wave'].plot(self.wavesound.time, self.wave)
     
+    def show_FRA(self, intseries, freqseries, clear:bool=False):
+        xd = Utility.seqparse(intseries)
+        yd = Utility.seqparse(freqseries)
+        spots = []
+        for i in range(xd.shape[0]):
+            for j in range(yd.shape[0]):
+                spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
+                    'brush': pg.mkBrush('b')})
+        if clear:
+            self.plots['Plot1'].clear()
+        self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
+        self.spi.addPoints(spots)
+        self.plots['Plot1'].addItem(self.spi)
+        return self.spi
+
     def show_spectrogram(self):
         """
         Plot the spectrum in the middle graph
@@ -917,21 +945,24 @@ class BuildGui():
         self.plots['Plot1'].setXRange(0, 50, padding=0)
         #self.plots['Plot1'].setLogMode(x=True)
         self.plots['Plot1'].setYRange(125, -5, padding=0)
-        xd = np.arange(2, 48, 1)
-       # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
-       # print ('xd: ', xd)
-        yd = np.arange(120, 5, -5)
-        spots = []
-        self.lastPoint = None
-        for i in range(xd.shape[0]):
-            for j in range(yd.shape[0]):
-                spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
-                    'brush': pg.mkBrush('b')})
-        self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
-        self.spi.addPoints(spots)
-        self.plots['Plot1'].addItem(self.spi)
-        self.spi.getViewBox().invertY(True)
-        self.spi.sigClicked.connect(self.getClickedLocation)
+
+
+        
+    #     xd = np.arange(2, 48, 1)
+    #    # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
+    #    # print ('xd: ', xd)
+    #     yd = np.arange(120, 5, -5)
+    #     spots = []
+    #     self.lastPoint = None
+    #     for i in range(xd.shape[0]):
+    #         for j in range(yd.shape[0]):
+    #             spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
+    #                 'brush': pg.mkBrush('b')})
+    #     self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
+        # self.spi.addPoints(spots)
+        # self.plots['Plot1'].addItem(self.spi)
+        # self.spi.getViewBox().invertY(True)
+        # self.spi.sigClicked.connect(self.getClickedLocation)
         #cross hair
         # vLine = pg.InfiniteLine(angle=90, movable=True)
         # hLine = pg.InfiniteLine(angle=0, movable=True)
@@ -989,7 +1020,15 @@ class BuildGui():
         self.btn_stop.clicked.connect(self.controller.stop_run)
         self.btn_quit.clicked.connect(self.controller.quit)
         self.spect_check.clicked.connect(self.speccheck)
+        # update the fra plot
+        self.spi = self.controller.plot_FRA(self.CPars['Stimulus']['Intensities'], 
+                     self.CPars['Stimulus']['Intensities'],
+                      clear=True, spi=None)  # first time through, get self.spi.
+        self.spi.getViewBox().invertY(True)
+        self.spi.sigClicked.connect(self.getClickedLocation)
         # self.updateStatusMessage()
+
+    
 
     def speccheck(self):
         self.spectimage = self.spect_check.isChecked()

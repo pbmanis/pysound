@@ -324,7 +324,7 @@ class NoiseBandPip(Sound):
     
     """
     def __init__(self, **kwds):
-        for k in ['rate', 'duration', 'dbspl', 'pip_duration', 'pip_start', 'ramp_duration', 'seed',
+        for k in ['rate', 'duration', 'dbspl', 'pip_duration', 'pip_starts', 'ramp_duration', 'seed',
             'noisebw', 'type', 'notchbw', 'centerfreq']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
@@ -347,9 +347,9 @@ class NoiseBandPip(Sound):
     #     """
     #     o = self.opts
     #     bbnoise1 = pipnoise(self.time, o['ramp_duration'], o['rate'],
-    #                     o['dbspl'], o['pip_duration'], o['pip_start'], o['seed'])
+    #                     o['dbspl'], o['pip_duration'], o['pip_starts'], o['seed'])
     #     bbnoise2 = pipnoise(self.time, o['ramp_duration'], o['rate'],
-    #                     o['dbspl'], o['pip_duration'], o['pip_start'], o['seed']+1)  # independent noises
+    #                     o['dbspl'], o['pip_duration'], o['pip_starts'], o['seed']+1)  # independent noises
     #     # fb1 = signalFilter_LPFButter(bbnoise1, o['noisebw'], o['rate'])
     #     # fb2 = signalFilter_LPFButter(bbnoise2, o['noisebw'], o['rate'])
     #     if o['type'] in ['Bandpass']:
@@ -424,7 +424,7 @@ class SAMNoise(Sound):
     """
     def __init__(self, **kwds):
         parms = ['rate', 'duration', 'seed', 'pip_duration',
-                 'pip_start', 'ramp_duration', 'fmod', 'dmod', 'seed']
+                 'pip_starts', 'ramp_duration', 'fmod', 'dmod', 'seed']
         for k in parms:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
@@ -448,7 +448,7 @@ class SAMNoise(Sound):
         o = self.opts
         o['phaseshift'] = 0.
         return modnoise(self.time, o['ramp_duration'], o['rate'], o['f0'],
-                       o['pip_duration'], o['pip_start'], o['dbspl'],
+                       o['pip_duration'], o['pip_starts'], o['dbspl'],
                        o['fmod'], o['dmod'], 0., o['seed'])
 
 
@@ -481,7 +481,7 @@ class SAMTone(Sound):
     """
     def __init__(self, **kwds):
         
-        for k in ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_start',
+        for k in ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_starts',
                   'ramp_duration', 'fmod', 'dmod']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
@@ -504,8 +504,8 @@ class SAMTone(Sound):
         """
         o = self.opts
         basetone = piptone(self.time, o['ramp_duration'], o['rate'], o['f0'],
-                       o['dbspl'], o['pip_duration'], o['pip_start'])
-        return sinusoidal_modulation(self.time, basetone, o['pip_start'], o['fmod'], o['dmod'], 0.)
+                       o['dbspl'], o['pip_duration'], o['pip_starts'])
+        return sinusoidal_modulation(self.time, basetone, o['pip_starts'], o['fmod'], o['dmod'], 0.)
 
 
 class ComodulationMasking(Sound):
@@ -518,7 +518,7 @@ class ComodulationMasking(Sound):
     
     """
     def __init__(self, **kwds):
-        for k in ['rate', 'duration', 'pip_duration', 'f0', 'dbspl', 'fmod', 'dmod', 'pip_start', 'ramp_duration',
+        for k in ['rate', 'duration', 'pip_duration', 'f0', 'dbspl', 'fmod', 'dmod', 'pip_starts', 'ramp_duration',
                   'flanking_type', 'flanking_spacing', 'flanking_phase', 'flanking_bands']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
@@ -529,14 +529,14 @@ class ComodulationMasking(Sound):
         o = self.opts
         # start with center tone
         onfreqmasker = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=o['f0'],
-                       dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_start'])
-        onfreqmasker = sinusoidal_modulation(self.time, onfreqmasker, o['pip_start'],
+                       dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_starts'])
+        onfreqmasker = sinusoidal_modulation(self.time, onfreqmasker, o['pip_starts'],
             o['fmod'], o['dmod'], 0.)
         tardelay = 0.5/o['fmod']  # delay by one half cycle
         target = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=o['f0'],
                        dbspl=o['dbspl'], pip_dur=o['pip_duration']-tardelay, 
-                       pip_starts=[p + tardelay for p in o['pip_start']])
-        target = sinusoidal_modulation(self.time, target, [p + tardelay for p in o['pip_start']],
+                       pip_starts=[p + tardelay for p in o['pip_starts']])
+        target = sinusoidal_modulation(self.time, target, [p + tardelay for p in o['pip_starts']],
                        o['fmod'], o['dmod'], 0.)
         if o['flanking_type'] == 'None':
             return (onfreqmasker+target)/2.0  # scaling...
@@ -550,7 +550,7 @@ class ComodulationMasking(Sound):
             flanktone = [[]]*len(flankfs)
             for i, fs in enumerate(flankfs):
                 flanktone[i] = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=flankfs[i],
-                               dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_start'])
+                               dbspl=o['dbspl'], pip_dur=o['pip_duration'], pip_starts=o['pip_starts'])
         # print(('type ,phase: ', o['flanking_type'], o['flanking_phase']))
         if o['flanking_type'] == 'NBnoise':
             raise ValueError('Flanking type nbnoise not yet implemented')
@@ -566,7 +566,7 @@ class ComodulationMasking(Sound):
         # print(('flanking freqs: ', flankfs))
         for i, fs in enumerate(flankfs):
             flanktone[i] = sinusoidal_modulation(self.time, flanktone[i],
-                    o['pip_start'], o['fmod'], o['dmod'], ph[i])
+                    o['pip_starts'], o['fmod'], o['dmod'], ph[i])
             if i == 0:
                 maskers = flanktone[i]
             else:
@@ -637,7 +637,7 @@ class RandomSpectrumShape(Sound):
     Yu and Young, 2000
     """
     def __init__(self, **kwds):
-        for k in ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_start',
+        for k in ['rate', 'duration', 'f0', 'dbspl', 'pip_duration', 'pip_starts',
                   'ramp_duration', 'amp_group_size', 'amp_sd', 'spacing', 'octaves']:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
@@ -653,7 +653,7 @@ class RandomSpectrumShape(Sound):
         octaves = o['octaves']
         lowf = o['f0']/octaves
         highf = o['f0']*octaves
-        freqlist = np.logspace(np.log2(lowf), np.log2(highf), num=o['spacing']*octaves*2, endpoint=True, base=2)
+        freqlist = np.logspace(np.log2(lowf), np.log2(highf), num=int(o['spacing']*octaves*2), endpoint=True, base=2)
         amplist = np.zeros_like(freqlist)
         db = o['dbspl']
         # assign amplitudes
@@ -669,7 +669,7 @@ class RandomSpectrumShape(Sound):
         for i in range(len(freqlist)):
 #            print(' f: %8.3f   a: %8.1f' % (freqlist[i], amplist[i]))
             wave = piptone(self.time, ramp=o['ramp_duration'], rate=o['rate'], f0=freqlist[i],
-                    dbspl=amplist[i], pip_dur=o['pip_duration'], pip_starts=o['pip_start'], pip_phase=np.pi*2*np.random.rand())
+                    dbspl=amplist[i], pip_dur=o['pip_duration'], pip_starts=o['pip_starts'], pip_phase=np.pi*2*np.random.rand())
             if i == 0:
                 result = wave
             else:

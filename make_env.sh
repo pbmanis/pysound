@@ -1,10 +1,13 @@
 ENVNAME="ps_venv"
-python3.8 -m venv $ENVNAME
-source $ENVNAME/bin/activate
 
-pip3 install --upgrade pip  # be sure pip is up to date in the new env.
+rm -rf $ENVNAME
+py -3.10 -m venv $ENVNAME
+source $ENVNAME/Scripts/activate
+
+python -m pip install --upgrade pip  # be sure pip is up to date in the new env.
 pip3 install wheel  # seems to be missing (note singular)
-pip3 install cython
+pip3 install cython>=3.0
+
 # # if requirements.txt is not present, create:
 # # pip install pipreqs
 # # pipreqs
@@ -12,9 +15,9 @@ pip3 install cython
 # #Then:
 #
 pip3 install -r requirements.txt
-source $ENVNAME/bin/activate
+source $ENVNAME/Scripts/activate
+python Scripts/pywin32_postinstall.py -install
 
-source $ENVNAME/bin/activate
 python --version
 python setup.py develop
 

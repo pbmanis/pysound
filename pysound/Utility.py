@@ -426,12 +426,12 @@ def long_Eval(line):
     colonFound = False
     inquote = False
     for c in line:
-        if c is "{":
+        if c == "{":
             continue
         if (
-            (c is "," or c is "}") and colonFound and not inpunct and not inquote
+            (c in [",""}"]) and colonFound and not inpunct and not inquote
         ):  # separator is ','
-            r = eval("{%s}" % sp)
+            r = eval(f"{sp:s}")
             u[list(r.keys())[0]] = r[list(r.keys())[0]]
             colonFound = False
             sp = ""
@@ -440,10 +440,10 @@ def long_Eval(line):
         if c == ":":
             colonFound = True
             continue
-        if c == "(" or c == "[":
+        if c in ["(" or "["]:
             inpunct += 1
             continue
-        if c == ")" or c == "]":
+        if c in [")", "]"]:
             inpunct -= 1
             continue
         if c == "'" and inquote:
@@ -706,7 +706,7 @@ def findspikes(
     sp = list(set(spv) & set(sps))  # intersection defines putative spike start times
     sp.sort()  # make sure all detected events are in order (sets is unordered)
     sp = tuple(sp)  # convert to tuple
-    if sp is ():
+    if len(sp) == 0:
         return st  # nothing detected
     if mode == "schmitt":  # normal operating mode is fixed voltage threshold
         for k in sp:
@@ -1130,7 +1130,7 @@ def seqparse(sequence):
      / indicates the skip arg type
      basic: /n means skip n : e.g., 1;10/2 = 1,3,5,7,9
      special: /##:r means randomize order (/##rn means use seed n for randomization)
-     special: /##:l means spacing of elements is logarithmic
+     special: /##:l means spacing of elements is logarithmic, with ## steps
      special: /##:s means spacing is logarithmic, and order is randomized. (/##sn means use seed n for randomization)
      special: /:a## means alternate with a number
      multiple sequences are returned in a list... just like single sequences...
@@ -1154,7 +1154,7 @@ def seqparse(sequence):
     )  # remove all spaces - nice to read, not needed to calculate
     sequence = str(sequence)  # make sure we have a nice string
     (seq2, sep, remain) = sequence.partition("&")  # find and return nested sequences
-    while seq2!= "":
+    while seq2 != "":
         try:
             (oneseq, onetarget) = recparse(seq2)
             seq.append(oneseq)
@@ -1215,11 +1215,12 @@ def recparse(cmdstr):
     seed = 0
 
     n2 = n2 + 0.01 * skip
-    print(("mode: ", mode))
-    if mode == 0 or mode == "":  # linear spacing; skip is size of step
+    # print("mode: ", mode)
+    # print(n1, n2, skip)
+    if mode in [0, ""]:  # linear spacing; skip is size of step
         recs = np.arange(n1, n2, skip)
     elif mode == "l":  # log spacing; skip is length of result
-        recs = np.logspace(np.log10(n1), np.log10(n2), skip)
+        recs = np.logspace(np.log10(n1), np.log10(n2), num=int(skip))
     elif mode == "t":  # just repeat the first value
         recs = n1
     elif mode == "n":  # use the number of steps, not the step size
@@ -1362,3 +1363,8 @@ if __name__ == "__main__":
     #         y = A * np.sin(2.*np.pi*t*F+phi) + normal(0.0, 0.5, len(t))
     #         (a, p) = sinefit(t, y, F)
     #         print "A: %f a: %f  phi: %f p: %f" % (A, a, phi, p)
+
+    # test the sequenceparser
+    seq = "4;48/8l"  # a log spaced set of frequencies - 8 from 4 to 48 inclusive.
+    u = seqparse(seq)
+    print(u)

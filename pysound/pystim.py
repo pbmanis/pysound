@@ -134,7 +134,7 @@ class Stimulus_Parameters:
 
 class PyStim:
     def __init__(
-        self, required_hardware=["Soundcard"], ni_devicename="dev1", controller=None
+        self, required_hardware=["NIDAQ"], ni_devicename="dev1", controller=None
     ):
         """
         During initialization, we identify what hardware is available.
@@ -151,6 +151,7 @@ class PyStim:
             The parent class that provides the controls.
         """
 
+        print("Required Hardware: ", required_hardware)
         self.State = Stimulus_Status()  # create instance of each data structure (class)
         self.State.required_hardware = required_hardware
         self.State.NI_devicename = ni_devicename
@@ -173,6 +174,8 @@ class PyStim:
         None
 
         """
+        print("Operating system: ", opsys)
+        print("nidaq_available: ", nidaq_available)
         if (
             opsys in ["Darwin", "Linux"] or nidaq_available is False
         ):  # If not on a Windows system, just set up soundcard
@@ -189,8 +192,10 @@ class PyStim:
                 self.State.hardware.append("RP21")
             if "RZ5D" in self.State.required_hardware and self.setup_RZ5D():
                 self.State.hardware.append("RZ5D")
-            if "PA5" in self.State.required_hardware and self.setup_PA5(devnum=0):
+            if "PA5" in self.State.required_hardware and self.setup_PA5(devnum=1):
                 self.State.hardware.append("PA5")
+
+        print("State.hardware: ", self.State.hardware)
 
 
     def setup_soundcard(self):
@@ -373,7 +378,8 @@ class PyStim:
         """
         play_sound sends the sound out to an audio device. In the absence of NI
         card, and TDT system, we (try to) use the system audio device (sound
-        card, etc) The waveform is played in both channels on sound cards,
+        card, etc).
+        The waveform is played in both channels on sound cards,
         possibly on both channels for other devices if there are 2 channels.
 
         Parameters
@@ -403,7 +409,7 @@ class PyStim:
         else:
             runmode = "Preview"
         if "pyaudio" in self.State.hardware:
-            print("Playing through pyaudio, system sound card")
+            print("pystim: Playing through pyaudio, system sound card")
             self.audio = pyaudio.PyAudio()
             chunk = 1024
             FORMAT = pyaudio.paFloat32
@@ -510,8 +516,9 @@ class PyStim:
             self.RZ5D.setModeStr(runmode)
         ##################################################################################
         # Set up the stimulus timing
-        # We use the PulseGen1 to write to digital line out 0
+        # We use the PulseGen1 to write to digital line out 1
         # This bit controls/triggers the timing of the stimuli (interstimulus interval)
+        # by trigginering the NI card.
 
         params = self.RZ5D.getParameterNames("PulseGen1")
         self.RZ5D.setParameterValue("PulseGen1", "PulsePeriod", stimulus_period)

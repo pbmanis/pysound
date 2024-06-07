@@ -22,7 +22,11 @@ import platform
 import struct
 
 import numpy as np
-import pyaudio
+try:
+    import pyaudio
+    PYAUDIO_INST=True
+except:
+    PYAUDIO_INST=False
 import scipy
 import scipy.signal
 
@@ -73,7 +77,8 @@ class Pysounds:
     def setup_soundcard(self):
         if self.debugFlag:
             print("pysounds.init: OS or hardware only supports standard sound card")
-        self.hardware.append("pyaudio")
+        if PYAUDIO_INST:
+            self.hardware.append("pyaudio")
         self.out_sampleFreq = 44100.0
         self.in_sampleFreq = 44100.0
 
@@ -352,7 +357,7 @@ class Pysounds:
     # The waveform is played in stereo.
     # Postduration is given in seconds...
     def play_sound(self, wavel, waver, samplefreq, postduration=0.35):
-        if "pyaudio" in self.hardware:
+        if "pyaudio" in self.hardware and PYAUDIO_INST:
             self.audio = pyaudio.PyAudio()
             chunk = 1024
             FORMAT = pyaudio.paFloat32

@@ -1,9 +1,9 @@
 Rem @echo off
 set ENVNAME=ps_venv
 set PSPATH=%cd%
-py -3.8 -m venv %ENVNAME%
-set ACT=C:\%PSPATH%\%ENVNAME%\Scripts\activate.bat
-set DEACT=C:\%PSPATH%\%ENVNAME%\Scripts\deactivate.bat
+py -3.10 -m venv %ENVNAME%
+set ACT=%PSPATH%\%ENVNAME%\Scripts\activate.bat
+set DEACT=%PSPATH%\%ENVNAME%\Scripts\deactivate.bat
 %ACT%
 python --version
 
@@ -16,9 +16,8 @@ Rem # if requirements.txt is not present, create:
 Rem # pip install pipreqs
 Rem # pipreqs
 
-Rem See noet about how to get pyaudio in the requirements.txt file
+Rem See note about how to get pyaudio in the requirements.txt file
 pip3 install -r requirements.txt
-pip3 install downloads\\PyAudio-0.2.11-cp38-cp38-win_amd64.whl
 CALL %ENVNAME%\Scripts\activate.bat
 python setup.py develop
 
