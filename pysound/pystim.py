@@ -18,7 +18,7 @@ NI6731 (high speed 4 channel dac)
 If the system sound card is used, stimuli are generated. This is used only for testing.
 
 
-12/17/2008-2022 Paul B. Manis, Ph.D.
+12/17/2008-2024 Paul B. Manis, Ph.D.
 UNC Chapel Hill
 Department of Otolaryngology/Head and Neck Surgery
 Supported by NIH Grants DC000425, DC004551 and DC015093 to PBM.
@@ -212,7 +212,7 @@ class PyStim:
 
         self.NIDevice = nidaqmx.system.System.local()
         self.NIDevicename = self.NIDevice.devices.device_names
-        self.Stimulus.out_sampleFreq = 200000  # output frequency, in Hz
+        self.Stimulus.out_sampleFreq = 250000  # output frequency, in Hz
         return True
 
     def show_nidaq(self):
@@ -367,17 +367,17 @@ class PyStim:
         self,
         wavel,
         waver=None,
-        samplefreq=44100,
-        postduration=0.05,
-        attns=[20.0, 20.0],
-        isi=1.0,
-        reps=1,
-        protocol="Search",
-        storedata=True,
+        samplefreq:int=44100,  # default is for sound card
+        postduration:float=0.005,
+        attns:list=[20.0, 20.0],
+        interstimulus_interval:float=1.0, # seconds
+        repetitions:int=1,
+        protocol:str="Search",
+        storedata:bool=True,
     ):
         """
         play_sound sends the sound out to an audio device. In the absence of NI
-        card, and TDT system, we (try to) use the system audio device (sound
+        card or a usable TDT system, we (try to) use the system audio device (sound
         card, etc).
         The waveform is played in both channels on sound cards,
         possibly on both channels for other devices if there are 2 channels.
@@ -390,13 +390,13 @@ class PyStim:
             Right channel waveform
         samplefreq : float
             output sample frequency (Hz)
-        postduration : float (default: 0.35)
-            Time after end of stimulus, in seconds
+        postduration : float (default: 0.05)
+            Time after end of stimulus, in seconds, to set values to 0
         attns : 2x1 list (default: [20., 20.])
             Attenuator settings to use for this stimulus
-        isi : float (default 1.0)
-            Interstimulus interval
-        reps : int (default 1)
+        interstimulus_interval : float (default 1.0)
+            InterStimulus interval: time from start to start of a repeated stimulus
+        repetitions : int (default 1)
             Number of repetitions before returning.
         protocol: str (default "Search")
             protocol mode to use.
@@ -408,6 +408,13 @@ class PyStim:
             runmode = "Record"
         else:
             runmode = "Preview"
+        # add end points (zeros) to the array for the specified time. This keeps the array
+        # from having random final values.
+        append_pts = int(postduration*samplefreq)
+        wavel = np.append(wavel, np.zeros(append_pts))
+        waver = np.append(waver, np.zeros(append_pts))
+        # print("pystim hardware: ", self.State.hardware)
+        self.stimstarttime = time.time()
         if "pyaudio" in self.State.hardware:
             print("pystim: Playing through pyaudio, system sound card")
             self.audio = pyaudio.PyAudio()
@@ -447,53 +454,29 @@ class PyStim:
             return
 
         if "PA5" in self.State.hardware:
-            print("setting PA5")
+            # print("setting PA5")``
             self.setAttens(atten_left=attns, atten_right=attns)
 
         if "RZ5D" in self.State.hardware:
-            print("Accessing RZ5D")
+            # print("Accessing RZ5D")
             swcount = -1
-            timeout = isi * reps + 1
+            timeout = interstimulus_interval * repetitions + 1
             # Start and run the stim/recording for specified # sweeps/time.
             # self.RZ5D.setModeStr(runmode)
             self._present_stim(
-                wavel,
-                stimulus_period=isi,
-                repetitions=reps,
+                waveforms=wavel,
+                interstimulus_interval=interstimulus_interval,
+                repetitions=repetitions,
                 runmode=runmode,
                 protocol=protocol,
                 timeout=timeout,
             )  # this sets up the NI card.
-            # at this point we return to the main caller
-            # stimuli will be presented and data collected (if in record mode)
-            # The caller needs to check for the done_flag
-
-            # I do not think we will need this section -
-            # while time.time()-start_time < deadmantimer:
-            #     time.sleep(0.01)
-            # sweeps_start = self.RZ5D.getSystemStatus()['recordSecs']
-            # currTime = 0
-            # prevTime = 0
-            # print(f"ISI: {isi:.3f}  reps: {reps:d}, runmode: {runmode:s}")
-            # print(f"Running for maximum of: {deadmantimer:.2f} seconds")
-            # while currTime < deadmantimer:
-            #     currTime = self.RZ5D.getSystemStatus()['recordSecs']-sweeps_start
-            #     if prevTime != currTime:
-            #         print(f"Running, sweeps time elapsed: {currTime:d} sec")
-            #     prevTime = currTime
-            # TFR end comment 10/12/21
-            # print("nidaq has stopped")
-            # if runmode == "Preview":
-            #     return
-            # else:
-            #     self.RZ5D.setModeStr("Idle")  # was (RZ5D_Standby)
-
-            # self.setAttens(atten_left=120)
+           
 
     def _present_stim(
         self,
         waveforms,
-        stimulus_period: float = 1.0,
+        interstimulus_interval: float = 1.0,
         repetitions: int = 1,
         runmode: str = "Preview",
         protocol: str = "Search",
@@ -508,41 +491,34 @@ class PyStim:
             Everything after that is controlled by synapse and hardware
             triggers, so we just return.
         """
-        print("present_stim: RZ5D")
-        self.State.done = False
-        if (
-            self.RZ5D.getModeStr() != runmode
-        ):  # make sure the rz5d is in the requested mode first
-            self.RZ5D.setModeStr(runmode)
-        ##################################################################################
-        # Set up the stimulus timing
-        # We use the PulseGen1 to write to digital line out 1
-        # This bit controls/triggers the timing of the stimuli (interstimulus interval)
-        # by trigginering the NI card.
+        # print("   present_stim: RZ5D")
 
-        params = self.RZ5D.getParameterNames("PulseGen1")
-        self.RZ5D.setParameterValue("PulseGen1", "PulsePeriod", stimulus_period)
-        self.RZ5D.setParameterValue("PulseGen1", "DutyCycle", 1.0)  # 1 msec pulse
-        self.RZ5D.setParameterValue("PulseGen1", "Enable", 1.0)
-        ##################################################################################
+        for nr in range(repetitions):
+            self.State.done = False
+            if (
+                self.RZ5D.getModeStr() != runmode
+            ):  # make sure the rz5d is in the requested mode first
+                self.RZ5D.setModeStr(runmode)
+            ##################################################################################
+            # Set up the stimulus timing
+            # We use the PulseGen0 to write to digital line out 0
+            # This bit controls/triggers the timing of the stimuli (interstimulus interval)
+            # by trigginering the NI card.
+            pgen = "PulseGen1"
+            # print("   rz5d interstimulus interval: ", interstimulus_interval)
+            params = self.RZ5D.getParameterNames(pgen)
+            # print(f"{pgen:s} params: {params!s}")
+            # print("before: ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
+            self.RZ5D.setParameterValue(pgen, "PulsePeriod", interstimulus_interval)
+            self.RZ5D.setParameterValue(pgen, "DutyCycle", 2.0)  # 1 msec pulse
+            self.RZ5D.setParameterValue(pgen, "Enable", 1)
+            # print("after: ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
+            ##################################################################################
 
-        # load up NIDAQ to go
-        self.prepare_NIDAQ(waveforms, repetitions=repetitions)
+            # load up NIDAQ to go. This takes about 50 msec depending on the waveform
+            # ni_timer = time.time()
+            self.prepare_NIDAQ(waveforms, repetitions=repetitions)
 
-        # TFR 20101007 removing the block checking/matching/storing stuff- important!
-        # This needs to be revised for record mode!
-        # if runmode == "Record":
-        #     protocol.replace(" ", "")
-        #     subject = self.RZ5D.getCurrentSubject()
-        #     self.TankName = self.RZ5D.getCurrentTank()
-        #     # tankname=self.RZ5D.getCurrentTank()
-        #     newblock = subject + protocol + "{:03d}".format(self.State.index)
-        #     for checkBlocks in self.RZ5D.getKnownBlocks():
-        #         if os.path.join(self.TankName, newblock) in checkBlocks:
-        #             self.State.index = self.State.index + 1
-        #             newblock = subject + protocol + "{:03d}".format(self.State.index)
-        #     self.RZ5D.setCurrentBlock(newblock)
-        #     self.State.index = self.State.index + 1
 
     def stop_nidaq(self):
         """
@@ -550,6 +526,7 @@ class PyStim:
         This is used when reloading a new stimulus.
         """
         if self.State.NI_task is not None:
+            self.State.NI_task.wait_until_done(timeout=5.0)
             self.State.NI_task.close()  # release resources
             self.State.NI_task = None  # need to destroy value
             self.State.running = False
@@ -558,7 +535,9 @@ class PyStim:
         """
         Stop the entire system (DAC and RZ5D)
         """
+
         self.stop_nidaq()
+
         self.RZ5D.setModeStr("Idle")
         self.setAttens(atten_left=120)
 
@@ -568,6 +547,7 @@ class PyStim:
         This gets the card ready to put out the buffer with the
         next trigger pulse
         """
+        # print("    Arm: ", time.time()-self.stimstarttime)
         self.State.NI_task.write(self.waveout, auto_start=False)
         #  self.State.NI_task.triggers.start_trigger.trig_type.DIGITAL_EDGE
         self.State.NI_task.triggers.start_trigger.cfg_dig_edge_start_trig(
@@ -581,21 +561,22 @@ class PyStim:
         Callback for when the daq is done...
         Re arm the dac card and start the task again
         """
-
+        # print("    re-arm: ", time.time() - self.stimstarttime)
         if status != 0:
             self.stop_recording()  # nidaq failure?
             return False
 
         if self.State.NI_task.is_task_done():
             self.State.NI_task.stop()
-            self.arm_NIDAQ()  # reload
+            self.arm_NIDAQ()  # reload and re-arm the trigger
             self.State.NI_task.start()
             self.State.stimulus_count += 1
 
-            counter_elapsed = self.State.stimulus_count > self.repetitions
+            # counter_elapsed = self.State.stimulus_count > self.repetitions
             #   controller_running = self.State.controller.running
             timeout = False  # (time.time() - self.start_time) > self.timeout
-            if counter_elapsed or (not self.State.running) or timeout:
+            # if counter_elapsed or (not self.State.running) or timeout:
+            if (not self.State.running) or timeout:
                 self.stop_nidaq()
                 self.State.done = True
                 return False
@@ -610,13 +591,16 @@ class PyStim:
         board is re-armed for the next trigger.
         This does not block the GUI.
         """
+        # print("    Load and run: ")
         self.State.NI_task = nidaqmx.task.Task("NI_DAC_out")
         channel_name = f"/{self.State.NI_devicename:s}/ao0"
         self.State.NI_task.ao_channels.add_ao_voltage_chan(  # can only do this once...
             channel_name, min_val=-10.0, max_val=10.0, units=VoltageUnits.VOLTS
         )
-        self.State.NI_task.register_done_event(self.re_arm_NIDAQ)
+        # self.State.NI_task.register_done_event(self.re_arm_NIDAQ)
 
+        # print("Load and arm: SFreq = ", self.Stimulus.out_sampleFreq, "Wave len: ", len(self.waveout))
+        # print("     stim dur: ", len(self.waveout)/self.Stimulus.out_sampleFreq)
         self.State.NI_task.timing.cfg_samp_clk_timing(
             self.Stimulus.out_sampleFreq,
             source="",
@@ -629,6 +613,8 @@ class PyStim:
         #     return False
         self.arm_NIDAQ()  # setup the DAC card
         self.State.NI_task.start()  # and start it
+        # print("    restarting at ", time.time()-self.start_time, "secs since last stim")
+        # print("    ", time.time() - self.stimstarttime, "secs since start of sequence")
         return True
 
     def prepare_NIDAQ(
@@ -641,8 +627,9 @@ class PyStim:
         Configured so that if we are currently running, the run is immediately stopped
         so we can setup right away.
         """
-
+        # print("\nPrepare NIDAQ")
         self.stop_nidaq()  # stop the DAC if it is running
+        # update the waveform and rep counter
         self.waveout = wavel
         self.repetitions = repetitions
         self.State.stimulus_count = 0
@@ -677,6 +664,7 @@ class PyStim:
 
     # clip data to max value (+/-) to avoid problems with daqs
     def clip(self, data, maxval):
+        # t0 = time.time()
         if self.State.debugFlag:
             print(
                 "pystim.clip: max(data) = %f, %f and maxval = %f"
@@ -703,6 +691,7 @@ class PyStim:
                 "pystims.clip: clipped max(data) = %f, %f and maxval = %f"
                 % (np.max(data), np.min(data), maxval)
             )
+        # print("clipping took: ", time.time() - t0)
         return (data, clip)
 
 
