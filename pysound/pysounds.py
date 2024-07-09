@@ -357,6 +357,7 @@ class Pysounds:
     # The waveform is played in stereo.
     # Postduration is given in seconds...
     def play_sound(self, wavel, waver, samplefreq, postduration=0.35):
+        # print("playing to Hardware: ", self.hardware)
         if "pyaudio" in self.hardware and PYAUDIO_INST:
             self.audio = pyaudio.PyAudio()
             chunk = 1024
@@ -407,6 +408,7 @@ class Pysounds:
                 "/Dev2/ao1", "ao1", -10.0, 10.0, nidaq.Val_Volts, None
             )  # use 2 channels
             wlen = 2 * len(wavel)
+            # print("Sample freq: ", samplefreq, " len wave: ", len(wavel))
             self.task.CfgSampClkTiming(
                 None, samplefreq, nidaq.Val_Rising, nidaq.Val_FiniteSamps, len(wavel)
             )
