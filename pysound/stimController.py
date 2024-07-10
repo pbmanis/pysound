@@ -611,8 +611,7 @@ class Controller(object):
                 rate=Fs,
                 duration=self.CPars["Stimulus"]["Duration"]
                 + self.CPars["Stimulus"]["Delay"]
-                + 0.2,
-                f0=self.CPars["Stimulus"]["Tone Frequency"] * 1000.0,
+                + 0.1,
                 dbspl=level,
                 pip_duration=self.CPars["Stimulus"]["Duration"],
                 pip_starts=[self.CPars["Stimulus"]["Delay"]],
@@ -634,7 +633,6 @@ class Controller(object):
                     duration=self.CPars["Stimulus"]["Duration"]
                     + self.CPars["Stimulus"]["Delay"]
                     + 0,
-                    f0=self.CPars["Stimulus"]["Tone Frequency"] * 1000.0,
                     dbspl=level,
                     pip_duration=self.CPars["Noise Train"]["Duration"],
                     pip_starts=1e-3
@@ -644,8 +642,8 @@ class Controller(object):
                         self.CPars["Noise Train"]["Interval"],
                     ),
                     ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                    fmod=self.CPars["Modulation/CMMR"]["Frequency"],
-                    dmod=0.0,
+                    # fmod=self.CPars["Modulation/CMMR"]["Frequency"],
+                    # dmod=0.0,
                     seed=seed,
                 )
             else:
@@ -654,13 +652,12 @@ class Controller(object):
                     duration=self.CPars["Stimulus"]["Duration"]
                     + self.CPars["Stimulus"]["Delay"]
                     + 0,
-                    f0=self.CPars["Stimulus"]["Tone Frequency"] * 1000.0,
                     dbspl=level,
                     pip_duration=self.CPars["Noise Train"]["Duration"],
                     pip_starts=np.arange(self.CPars["Stimulus"]["Delay"], 1),
                     ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                    fmod=self.CPars["Modulation/CMMR"]["Frequency"],
-                    dmod=0.0,
+                    # fmod=self.CPars["Modulation/CMMR"]["Frequency"],
+                    # dmod=0.0,
                     seed=seed,
                 )
 
@@ -806,6 +803,8 @@ class Controller(object):
 
         if wave is not None:
             self.wavesound = wave
+
+            print(len(self.wavesound.sound), len(self.wavesound.time))
             print("wave generated")
             self.wave = self.map_voltage(
                 stim, self.wavesound.sound, clip=True
@@ -1331,28 +1330,28 @@ class BuildGui:
                     {
                         "name": "Interval",
                         "type": "float",
-                        "value": 50.0,
+                        "value": 100.0,
                         "step": 5.0,
-                        "limits": [1.0, 1000.0],
+                        "limits": [1.0, 2000.0],
                         "suffix": "ms",
-                        "default": 50.0,
+                        "default": 100.0,
                     },
                     {
                         "name": "Number",
                         "type": "int",
-                        "value": 1,
+                        "value": 2,
                         "step": 1,
                         "limits": [1, 200.0],
-                        "default": 4,
+                        "default": 2,
                     },
                     {
                         "name": "Duration",
                         "type": "float",
-                        "value": 0.2,
+                        "value": 0.05,
                         "step": 10e-2,
-                        "limits": [0.1, 1],
+                        "limits": [0.001, 1],
                         "suffix": "s",
-                        "default": 0.2,
+                        "default": 0.05,
                     },
                 ],
             },

@@ -1,0 +1,5 @@
+Collecting cython
+  Using cached Cython-3.0.10-cp310-cp310-win_amd64.whl.metadata (3.2 kB)
+Using cached Cython-3.0.10-cp310-cp310-win_amd64.whl (2.8 MB)
+Installing collected packages: cython
+Successfully installed cython-3.0.10
