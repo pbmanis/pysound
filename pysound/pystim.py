@@ -308,11 +308,16 @@ class PyStim:
         self.RZ5D = tdt.SynapseAPI()
         if self.RZ5D.getModeStr() != "Idle":
             self.RZ5D.setModeStr("Idle")
+        # print(dir(self.RZ5D))
+        self.get_RZ5D_Params()
+        # print(self.RZ5DParams["device_names"])
+        # exit()
         return True
+
 
     def get_RZ5D_Params(self):
         self.RZ5DParams = {}  # keep a local copy of the parameters
-        self.RZ5DParams["device_name"] = self.RZ5D.getGizmoNames()
+        self.RZ5DParams["device_names"] = self.RZ5D.getGizmoNames()
         self.RZ5DParams["device status"] = self.RZ5D.getModeStr()
 
     def show_RZ5D(self):
@@ -508,11 +513,11 @@ class PyStim:
             # print("   rz5d interstimulus interval: ", interstimulus_interval)
             params = self.RZ5D.getParameterNames(pgen)
             # print(f"{pgen:s} params: {params!s}")
-            # print("before: ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
+            print("PulseGen1: before: ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
             self.RZ5D.setParameterValue(pgen, "PulsePeriod", interstimulus_interval)
             self.RZ5D.setParameterValue(pgen, "DutyCycle", 2.0)  # 1 msec pulse
             self.RZ5D.setParameterValue(pgen, "Enable", 1)
-            # print("after: ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
+            print("after: ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
             ##################################################################################
 
             # load up NIDAQ to go. This takes about 50 msec depending on the waveform
@@ -536,9 +541,14 @@ class PyStim:
         Stop the entire system (DAC and RZ5D)
         """
 
-        self.stop_nidaq()
-
         self.RZ5D.setModeStr("Idle")
+        i = 0
+        while(self.RZ5D.getModeStr() != "Idle"):
+            time.sleep(0.2)
+            i += 1
+            if i > 25:
+                break
+        self.stop_nidaq()
         self.setAttens(atten_left=120)
 
     def arm_NIDAQ(self):

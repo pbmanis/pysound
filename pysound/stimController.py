@@ -49,12 +49,12 @@ class Controller(object):
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
         self.img = img
+        self.searchmode = False
         # set up a timer to control timing of stimuli
         self.TrialTimer = QtCore.QTimer()  # get a Q timer
         self.TrialTimer.timeout.connect(self.next_stimulus)
         self.maingui = maingui
         self.ProtocolNumber = 0
-        self.TDTinfo = tdt.SynapseAPI()
         self.setAllParameters(ptreedata)
         self.wave = np.zeros(10)
 
@@ -126,8 +126,6 @@ class Controller(object):
             if path[0] == 'Stimulus':
                 if path[1] == 'Intensities':
                 # self.CPars['Stimulus']['Intensities'] = data
-                    print(data)
-                    print('parsed: ', Utility.seqparse(data)[0][0])
                     self.show_FRA_grid(Utility.seqparse(data)[0][0], Utility.seqparse(self.CPars['Stimulus']['Frequencies'])[0][0], clear=True)
                 if path[1] == "Frequencies":
                     # self.CPars['Stimulus']['Frequencies'] = data
@@ -144,14 +142,14 @@ class Controller(object):
                 # pp.pprint(self.CPars)
 
     # def getCurrentBlock(self):
-    #     if self.maingui.TT.available:
-    #         self.maingui.TT.open_tank()
-    #         lastblock = self.maingui.TT.find_last_block()
-    #         print ('Current block: ', lastblock)
-    #         self.StimRecord['FirstBlock'] = lastblock
-    #         self.maingui.TT.close_tank()
-    #     else:
-    #         self.StimRecord['FirstBlock'] = 1
+        # if self.maingui.TT.available:
+        #     self.maingui.TT.open_tank()
+        #     lastblock = self.maingui.TT.find_last_block()
+        #     print ('Current block: ', lastblock)
+        #     self.StimRecord['FirstBlock'] = lastblock
+        #     self.maingui.TT.close_tank()
+        # else:
+        #     self.StimRecord['FirstBlock'] = 1
 
     def start_run(self):
         """
@@ -168,6 +166,8 @@ class Controller(object):
         """
         self.clearErrMsg()
         # self.showParameters()
+        t = np.linspace(0, 0.1, 1000)
+        self.maingui.online_plot.setData([0,0], [0,0]) # , pen=pg.mkPen("g", width=0.30))
 
         # check for valid times:
         repetitions = self.CPars["Stimulus"]["Repetitions"]  # repetitions in a single sweep
@@ -201,6 +201,8 @@ class Controller(object):
         self.StimRecord["savedata"] = (
             True  # flag to save data - set to false by search modes
         )
+        self.streamer = None
+
         # if self.CPars["Stimulus"]["Randomize"]:
 
         # else:
@@ -215,6 +217,22 @@ class Controller(object):
         self.maingui.label_status.setText("Running")
         self.maingui.label_trialctr.setText("Trial: %04d" % 0)
 
+        # if "oScope1" in self.PS.RZ5DParams["device_names"]:
+        #     self.streamer = tdt.APIStreamer(gizmo='APIStreamer1Ch1', history_seconds=5, callback=self.show_stream_data)
+        # print("RZ5D Devices: ", self.PS.RZ5DParams['device_names'])
+        gizmonames =self.PS.RZ5D.getGizmoNames()
+        print("Gizmos with API parameters: ",gizmonames)
+        streamer_name = "APIStreamerMC1"
+        if streamer_name in gizmonames:
+            streamer_pars = self.PS.RZ5D.getParameterNames(streamer_name)
+            # print("streamer paremters: ", streamer_pars)
+            self.PS.RZ5D.getGizmoInfo(streamer_name)
+        if "APIStreamerMC1" in self.PS.RZ5DParams["device_names"]:
+            self.streamer = tdt.APIStreamer(gizmo = streamer_name, history_seconds=2,
+                                             callback=self.show_stream_data, verbose=True)
+        # print("self.streamer functions: ", dir(self.streamer))
+        # print("self.streamer.callback: ", self.streamer.callback)
+        
         self.TrialTimer.start(100)  # start (almost) right away  - time is in msec
 
     def pause_run(self):
@@ -239,6 +257,39 @@ class Controller(object):
         else:
             return
 
+    def show_stream_data(self, result):
+        #  CALLBACK
+        # get and display the most recent data
+        # print("Streamer Callback show_stream_data called")
+        # if self.streamer is None:
+        #     print("Streamer is None")
+        #     return 
+        # print("result: ", dir(result))  # structure
+        # print("result.result: ", dir(result.result))  # list
+        # print("data lock: ", result.data_lock)
+        # print("data shape: ", result.data.shape)
+        # print("result data: ", result.data)
+        # print("result time array: ", result.time_array)  # not time - but sequential... 
+        # print("new data: ", result.new_data.shape)
+        ts = result.ts
+        # print("ts: ", ts.shape, np.min(ts), np.max(ts))
+        if result.data.shape[0] == 0:
+            return
+        else:
+            # print("A..", end="")
+            pc = ['g', 'y', 'c', 'b']
+            # print("result.data shape 0: ", result.data.shape[0])
+            # self.maingui.online_plot.clear()
+            for ich in range(result.data.shape[0]):
+                if ich != 2:
+                    continue
+                # print("ich: ", ich, end="")
+                # print(result.data[ich,:20])
+                # print(result.ts.shape, result.data.shape)
+                self.maingui.online_plot.setData(result.ts, result.data[ich,:], pen=pg.mkPen(pc[ich], width=0.30))
+                # self.maingui.online_plot.setXRange([np.min(result.ts), np.max(result.ts)])
+                 # print("B")
+
     def next_stimulus(self):
         """
         Present the next stimulus in the sequence
@@ -252,6 +303,8 @@ class Controller(object):
         Nothing
 
         """
+
+      
         self.TrialTimer.stop()
         if self.trial_count > self.total_trials:
             print("Stopped by trial_counter")
@@ -365,8 +418,11 @@ class Controller(object):
         -------
         Nothing
         """
-        self.TrialTimer.stop()
         self.PS.stop_recording()
+        # if self.streamer is not None:
+        #     self.streamer.reset()
+        self.TrialTimer.stop()
+
         self.maingui.label_status.setText("Stopped")
         self.trial_active = False
         self.stop_hit = True
@@ -388,7 +444,7 @@ class Controller(object):
             self.searchmode is False
         ):  # TFR 20180227- only write the .p file is we're not in search mode
             # desired sequence of events: determine the tank, write the stimulus info into the Tank/Block?
-            # TankLocus= self.TDTinfo.getCurrentTank()# if self.maingui.TT.available:
+            # TankLocus= self.tdt.SynapseAPI.getCurrentTank()# if self.maingui.TT.available:
             # # TankLocus.replace("\\",'\')
             # if TankLocus!='':
             # print('protocol?: ',self.StimRecord['Trials'][0]['protocol'])
@@ -798,13 +854,13 @@ class Controller(object):
             self.searchmode = False
             # self.BlockString=stim.replace(" ","")+ProtocolNumber)
             # print('Just made BlockString: ',self.BlockString)
-            # self.TDTinfo.setCurrentBlock(self.BlockString)
+            # self.tdt.SynapseAPI.setCurrentBlock(self.BlockString)
             # self.ProtocolNumber = self.ProtocolNumber + 1
 
         if wave is not None:
             self.wavesound = wave
 
-            print(len(self.wavesound.sound), len(self.wavesound.time))
+            print("prepare_run: len wavesound and time", len(self.wavesound.sound), len(self.wavesound.time))
             print("wave generated")
             self.wave = self.map_voltage(
                 stim, self.wavesound.sound, clip=True
@@ -973,8 +1029,8 @@ class BuildGui:
         #     parser.read('config.ini')
         #     self.TDTTankDirectory = parser.get('TDTTanks', 'dir')
         #     print('tankd dir: ', self.TDTTankDirectory)
-        # self.TDTinfo.tank_directory = self.TDTinfo.getCurrentTank()
-        # self.TDTinfo.blockstatus = self.TDTinfo.setCurrentBlock('test')
+        # self.tdt.SynapseAPI.tank_directory = self.tdt.SynapseAPI.getCurrentTank()
+        # self.tdt.SynapseAPI.blockstatus = self.tdt.SynapseAPI.setCurrentBlock('test')
         # if len(self.TDTTankDirectory) > 0:
         #     self.TT.open_tank()
         #     lastblock = self.TT.find_last_block()
@@ -1449,6 +1505,14 @@ class BuildGui:
         self.plots["LongTermSpec"].setTitle("LongTerm Spectrum", color="#ff0000")
         self.plots["LongTermSpec"].getAxis("bottom").setLabel("F (Hz)", color="#ff0000")
 
+        glayout.nextRow()  # add on-line spike analysis plot
+        self.plots["OnLine"] = glayout.addPlot() # this is a PlotItem
+        self.plots["OnLine"].getAxis("left").setLabel("V", color="white")
+        self.plots["OnLine"].setTitle("Online Analysis", color="white")
+        self.plots["OnLine"].getAxis("bottom").setLabel("Time", color="white")
+        self.online_plot = self.plots["OnLine"].plot([0,0], [0,0], pg.mkPen("g", width=0.35))  # put someting in the PlotItem
+
+
         #     if self.spectimage:
         #         self.img = pg.ImageView() # view=self.plots['Spec'])
         #         arr = np.random.random((100, 32))
@@ -1533,7 +1597,7 @@ class BuildGui:
         self.recentpath = ""
         self.btn_waveform.clicked.connect(self.controller.show_wave)
         self.btn_spectrum.clicked.connect(self.controller.show_spectrogram)
-        # self.btn_tdt.clicked.connect(print('TDT Tank: ', self.TDTinfo.getCurrentTank())) # self.TT.set_tank_path)
+        # self.btn_tdt.clicked.connect(print('TDT Tank: ', self.tdt.SynapseAPI.getCurrentTank())) # self.TT.set_tank_path)
         #    self.ButtonEvents = QtCore.QTimer() # get a Q timer
         #    self.btn_stop.clicked.connect(timer, SIGNAL(timeout()), this, SLOT(processOneThing()));
         # timer->start();
