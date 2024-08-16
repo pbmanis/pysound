@@ -1,4 +1,4 @@
-pysounds
+pysound
 ========
 
 A set of modules that provide auditory stimulus generation, including hardware control.
