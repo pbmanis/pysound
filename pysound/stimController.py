@@ -216,7 +216,7 @@ class Controller(object):
         self.trial_active = True
         self.maingui.label_status.setText("Running")
         self.maingui.label_trialctr.setText("Trial: %04d" % 0)
-
+        self.PS.enable_digital_display=False
         # if "oScope1" in self.PS.RZ5DParams["device_names"]:
         #     self.streamer = tdt.APIStreamer(gizmo='APIStreamer1Ch1', history_seconds=5, callback=self.show_stream_data)
         # print("RZ5D Devices: ", self.PS.RZ5DParams['device_names'])
@@ -232,8 +232,11 @@ class Controller(object):
                                              callback=self.show_stream_data, verbose=True)
         # print("self.streamer functions: ", dir(self.streamer))
         # print("self.streamer.callback: ", self.streamer.callback)
-        
-        self.TrialTimer.start(100)  # start (almost) right away  - time is in msec
+        else:
+            self.PS.enable_digital_display=True
+            self.PS.online_plot = self.maingui.plots['OnLine']
+
+        self.TrialTimer.start(10)  # start (almost) right away  - time is in msec
 
     def pause_run(self):
         """
@@ -1120,7 +1123,7 @@ class BuildGui:
                         "name": "InterTrial Interval",
                         "type": "float",
                         "value": 1.0,
-                        "limits": [0.5, 300.0],
+                        "limits": [0.2, 300.0],
                         "suffix": "s",
                         "default": 1.0,
                         "tip": "Time between sweeps (trials) in FRA and RI protocols",
@@ -1128,11 +1131,11 @@ class BuildGui:
                     {
                         "name": "InterStimulus Interval",
                         "type": "float",
-                        "value": 1.0,
-                        "limits": [0.5, 300.0],
+                        "value": 0.05,
+                        "limits": [0.02, 300.0],
                         "suffix": "s",
-                        "default": 1.0,
-                        "tip": "Time between stimuli in a sweep",
+                        "default": 0.05,
+                        "tip": "Time between repeated stimuli in a sweep",
                     },
                     {
                         "name": "Randomize",
@@ -1156,9 +1159,9 @@ class BuildGui:
                         "type": "float",
                         "value": 0.1,
                         "step": 0.05,
-                        "limits": [0.001, 10],
+                        "limits": [0.001, 10.0],
                         "suffix": "s",
-                        "default": 0.2,
+                        "default": 0.1,
                         "tip": "Sound delay, in seconds",
                     },
                 ],
