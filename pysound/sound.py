@@ -515,7 +515,7 @@ class SAMNoise(Sound):
 
         """
         o = self.opts
-        o["phaseshift"] = 0.0
+        o["phase_shift"] = 0.0
         return modnoise(
             self.time,
             ramp=o["ramp_duration"],
@@ -525,7 +525,7 @@ class SAMNoise(Sound):
             starts=o["pip_starts"],
             dbspl=o["dbspl"],
             fmod=o["fmod"],
-            phaseshift=o["phaseshift"],
+            phase_shift=o["phase_shift"],
             dmod=o["dmod"],
             seed=o["seed"],
         )
@@ -608,7 +608,7 @@ class SAMTone(Sound):
             tstart=o["pip_starts"][0],
             fmod=o["fmod"],
             dmod=o["dmod"],
-            phaseshift=0.0,
+            phase_shift=0.0,
         )
 
 
@@ -643,11 +643,21 @@ class ComodulationMasking(Sound):
         Sound.__init__(self, **kwds)
 
     def generate(self):
-
+        """ first check parameters"""
         o = self.opts
+
+        assert o["flanking_phase"] in ['Comodulated', 'Codeviant', 'Random'] 
+        assert o["flanking_bands"] in [0, 1, 2, 3, 4, 5]
+        assert o["flanking_spacing"] > 0.05 and o['flanking_spacing'] < 3
+        assert o["flanking_type"] in ["MultiTone", "NBNoise"]
+        assert (o["fmod"] > 0.5) and (o['fmod'] < 1000)
+        assert (o["dmod"] >= 0) and (o['dmod'] < 100.)
+
+
         # start with center tone
         onfreqmasker = piptone(
             self.time,
+            duration=o["duration"],
             ramp=o["ramp_duration"],
             rate=o["rate"],
             f0=o["f0"],
@@ -658,7 +668,7 @@ class ComodulationMasking(Sound):
         onfreqmasker = sinusoidal_modulation(
             self.time,
             basestim=onfreqmasker,
-            pip_starts=o["pip_starts"],
+            tstart=o["pip_starts"],
             fmod=o["fmod"],
             dmod=o["dmod"],
             phase_shift=0.0,
@@ -666,6 +676,7 @@ class ComodulationMasking(Sound):
         tardelay = 0.5 / o["fmod"]  # delay by one half cycle
         target = piptone(
             self.time,
+            duration=o['duration'],
             ramp=o["ramp_duration"],
             rate=o["rate"],
             f0=o["f0"],
@@ -676,7 +687,7 @@ class ComodulationMasking(Sound):
         target = sinusoidal_modulation(
             self.time,
             basestim=target,
-            pip_starts=[p + tardelay for p in o["pip_starts"]],
+            tstart=[p + tardelay for p in o["pip_starts"]],
             fmod=o["fmod"],
             dmod=o["dmod"],
             phase_shift=0.0,
@@ -691,17 +702,30 @@ class ComodulationMasking(Sound):
             flankfs.extend([f0 / ((2 ** (octspace * (k + 1)))) for k in range(nband)])
             flankfs = sorted(flankfs)
             flanktone = [[]] * len(flankfs)
+
+
             for i, fs in enumerate(flankfs):
+                match o["flanking_phase"]:
+                    case "Comodulated":
+                        phaseshift = 0.
+                    case "Codeviant":
+                        phaseshift = (i+1)*np.pi*2.0/nband
+                    case "Random":
+                        phaseshift = np.pi*2*np.random.uniform()
+                    case _:
+                        raise ValueError("Flanking phase not in valid choices: Comodulated, Codeviant, Random")
                 flanktone[i] = piptone(
                     self.time,
+                    duration=o['duration'],
                     ramp=o["ramp_duration"],
                     rate=o["rate"],
                     f0=flankfs[i],
                     dbspl=o["dbspl"],
                     pip_dur=o["pip_duration"],
                     pip_starts=o["pip_starts"],
+                    pip_phase=phaseshift,
                 )
-        # print(('type ,phase: ', o['flanking_type'], o['flanking_phase']))
+        print('type, phase: ', o['flanking_type'], o['flanking_phase'])
         if o["flanking_type"] == "NBnoise":
             raise ValueError("Flanking type nbnoise not yet implemented")
         if o["flanking_phase"] == "Comodulated":
@@ -715,12 +739,12 @@ class ComodulationMasking(Sound):
             )
         if o["flanking_phase"] == "Random":
             ph = (
-                2.0
+                2.0 * np.random.uniform()
                 * np.pi
                 * np.arange(-o["flanking_bands"], o["flanking_bands"] + 1, 1)
                 / o["flanking_bands"]
             )
-            raise ValueError("Random flanking phases not implemented")
+            
         # print(('flanking phases: ', ph))
         # print((len(flanktone)))
         # print(('flanking freqs: ', flankfs))
@@ -998,6 +1022,7 @@ def piptone(
     pin = np.zeros(int(duration*rate))
     for start in pip_starts:
         ts = int(np.floor(start * rate))
+        print("ts: ", ts, "len pip: ", len(pip), "len pin: ", len(pin), duration, rate)
         pin[ts : ts + len(pip)] += pip
 
     return pin
@@ -1114,7 +1139,7 @@ def sinusoidal_modulation(
     tstart: float,
     fmod: float,
     dmod: float,
-    phaseshift: float,
+    phase_shift: float,
 ):
     """
     Generate a sinusoidally amplitude-modulation of the input stimulus.
@@ -1137,13 +1162,13 @@ def sinusoidal_modulation(
         modulation frequency (Hz)
     dmod : float
         modulation depth (percent)
-    phaseshift : float
+    phase_shift : float
         modulation phase shift (starting phase, radians)
 
     """
 
     env = 1.0 + (dmod / 100.0) * np.sin(
-        (2.0 * np.pi * fmod * (t - tstart)) + phaseshift - np.pi / 2
+        (2.0 * np.pi * fmod * (t - tstart)) + phase_shift - np.pi / 2
     )  # envelope...
     return basestim * env
 
@@ -1213,7 +1238,7 @@ def modnoise(
     dbspl: float,
     fmod: float,
     dmod: float,
-    phaseshift: float,
+    phase_shift: float,
     seed: int,
 ):
     """
@@ -1239,7 +1264,7 @@ def modnoise(
         modulation frequency
     fmod : float
         modulation depth percent
-    phaseshift : float
+    phase_shift : float
         modulation phase
     seed : int
         seed for random number generator
@@ -1263,7 +1288,7 @@ def modnoise(
         seed=seed,
     )
     env = 1 + (dmod / 100.0) * np.sin(
-        (2 * np.pi * fmod * t) - np.pi / 2 + phaseshift
+        (2 * np.pi * fmod * t) - np.pi / 2 + phase_shift
     )  # envelope...
 
     pin = linearramp(pin, mxpts, irpts)
@@ -1467,6 +1492,25 @@ def test_noise_pip():
     mpl.plot(wave1.time, wave1.sound)
     mpl.show()
 
+def test_cmmr():
+    rate = 250000.
+    for fp in ["Comodulated", "Codeviant", "Random"]:
+        wave1 = ComodulationMasking(rate=rate, duration=1.0, f0 = 4000., 
+                                pip_duration=0.25, pip_starts=[0.35],
+                                dbspl=70, fmod=40.0, dmod=50,
+                                ramp_duration=0.0025,
+                                flanking_type='MultiTone', flanking_spacing=0.5,
+                                flanking_phase=fp, flanking_bands=3)
+        # downsample wave for speaker
+        tmax = np.max(wave1.time)
+        newrate = 44100
+        tnew = np.arange(0, tmax, 1./newrate)
+
+        dwave = np.interp(tnew, wave1.time, wave1.sound)
+        sounddevice.play(dwave, 44100)
+        mpl.plot(wave1.time, wave1.sound)
+        mpl.show()
+
 def test_clicks():
     rate = 200000.
     wave1 = ClickTrain(
@@ -1484,11 +1528,11 @@ if __name__ == "__main__":
     Test multiplicative bandpass/notch method for noise
     """
     import matplotlib.pyplot as mpl
-
+    import sounddevice
     # test_tone_pip()
     # test_noise_pip()
     # test_clicks()
+    test_cmmr()
 
-
-    test_noise_bandpass()
+    # test_noise_bandpass()
     

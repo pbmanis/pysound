@@ -117,7 +117,7 @@ class Stimulus_Status:
     debugFlag: bool = False
     NI_devicename: str = ""
     NI_task: object = None  # dac output task
-    NI_digitalin: object=None  # digital in task (for ttl pulse measurements)
+    NI_digitalin: object = None  # digital in task (for ttl pulse measurements)
     required_hardware: list = field(default_factory=defemptylist)
     hardware: list = field(default_factory=defemptylist)
     max_repetitions: int = 10
@@ -136,7 +136,7 @@ class Stimulus_Parameters:
 
 class PyStim:
     def __init__(
-        self, required_hardware=["NIDAQ"], ni_devicename="dev1", controller=None
+        self, required_hardware=["NIDAQ"], ni_devicename="Dev1", controller=None
     ):
         """
         During initialization, we identify what hardware is available.
@@ -159,10 +159,15 @@ class PyStim:
         self.State.NI_devicename = ni_devicename
         self.State.controller = controller
         self.Stimulus = Stimulus_Parameters()
-        self.enable_digital_display=False
+        self.enable_digital_display = False
         self.new_data = False
         self.repetition_number = 0
-        self.online_plot = None
+        self.analysis_plots = {}
+        self.psth_data = []
+        self.RI_data = []
+        self.RI_levels = []
+        self.isi_data = []
+
         self.find_hardware()
         #            device_info={"devicename": devicename}
         #        )  # population the self.State.hardware list
@@ -202,7 +207,6 @@ class PyStim:
                 self.State.hardware.append("PA5")
 
         print("State.hardware: ", self.State.hardware)
-
 
     def setup_soundcard(self):
         if self.State.debugFlag:
@@ -252,7 +256,9 @@ class PyStim:
                 print("pystim.setup_PA5: Connected to PA5 Attenuator %d" % devnum)
         else:
             if "PA5" in self.State.required_hardware:
-                raise IOError(f"PA5 requirement requested, but device  {devnum:d} not found")
+                raise IOError(
+                    f"PA5 requirement requested, but device  {devnum:d} not found"
+                )
             else:
                 return False
         self.PA5.SetAtten(120.0)
@@ -320,7 +326,6 @@ class PyStim:
         # exit()
         return True
 
-
     def get_RZ5D_Params(self):
         self.RZ5DParams = {}  # keep a local copy of the parameters
         self.RZ5DParams["device_names"] = self.RZ5D.getGizmoNames()
@@ -378,13 +383,14 @@ class PyStim:
         self,
         wavel,
         waver=None,
-        samplefreq:int=44100,  # default is for sound card
-        postduration:float=0.005,
-        attns:list=[20.0, 20.0],
-        interstimulus_interval:float=1.0, # seconds
-        repetitions:int=1,
-        protocol:str="Search",
-        storedata:bool=True,
+        samplefreq: int = 44100,  # default is for sound card
+        postduration: float = 0.005,
+        attns: list = [20.0, 20.0],
+        freq: float = 4.0,
+        interstimulus_interval: float = 1.0,  # seconds
+        repetitions: int = 1,
+        protocol: str = "Search",
+        storedata: bool = True,
     ):
         """
         play_sound sends the sound out to an audio device. In the absence of NI
@@ -404,7 +410,7 @@ class PyStim:
         postduration : float (default: 0.05)
             Time after end of stimulus, in seconds, to set values to 0
         attns : 2x1 list (default: [20., 20.])
-            Attenuator settings to use for this stimulus
+            Attenuator settings to use for this stimulus, left and right
         interstimulus_interval : float (default 1.0)
             InterStimulus interval: time from start to start of a repeated stimulus
         repetitions : int (default 1)
@@ -419,9 +425,12 @@ class PyStim:
             runmode = "Record"
         else:
             runmode = "Preview"
+
+        self.attns = attns
+        self.freq = freq
         # add end points (zeros) to the array for the specified time. This keeps the array
         # from having random final values.
-        append_pts = int(postduration*samplefreq)
+        append_pts = int(postduration * samplefreq)
         wavel = np.append(wavel, np.zeros(append_pts))
         waver = np.append(waver, np.zeros(append_pts))
         # print("pystim hardware: ", self.State.hardware)
@@ -453,9 +462,9 @@ class PyStim:
             (waver, clipr) = self.clip(waver, 20.0)
             (wavel, clipl) = self.clip(wavel, 20.0)
             wave[0::2] = waver
-            wave[
-                1::2
-            ] = wavel  # order chosen so matches etymotic earphones on my macbookpro.
+            wave[1::2] = (
+                wavel  # order chosen so matches etymotic earphones on my macbookpro.
+            )
             postdur = int(float(postduration * self.Stimulus.in_sampleFreq))
 
             write_array(self.stream, wave)
@@ -482,7 +491,6 @@ class PyStim:
                 protocol=protocol,
                 timeout=timeout,
             )  # this sets up the NI card.
-           
 
     def _present_stim(
         self,
@@ -508,7 +516,7 @@ class PyStim:
             self.RZ5D.getModeStr() != runmode
         ):  # make sure the rz5d is in the requested mode first
             self.RZ5D.setModeStr(runmode)
-
+        self.protocol = protocol
         ##################################################################################
         # Set up the stimulus timing
         # We use the PulseGen0 to write to digital line out 0
@@ -518,7 +526,9 @@ class PyStim:
         # print("   rz5d interstimulus interval: ", interstimulus_interval)
         params = self.RZ5D.getParameterNames(pgen)
         # print(f"{pgen:s} params: {params!s}")
-        print("PulseGen1:pulse period ", self.RZ5D.getParameterValue(pgen, "PulsePeriod"))
+        print(
+            "PulseGen1:pulse period ", self.RZ5D.getParameterValue(pgen, "PulsePeriod")
+        )
         self.RZ5D.setParameterValue(pgen, "PulsePeriod", interstimulus_interval)
         self.RZ5D.setParameterValue(pgen, "DutyCycle", 2.0)  # 1 msec pulse
         self.RZ5D.setParameterValue(pgen, "Enable", 1)
@@ -532,7 +542,6 @@ class PyStim:
             self.prepare_NIDAQ(waveforms, repetitions=repetitions)
             self.repetition_number = nr
 
-
     def stop_nidaq(self):
         """
         Only stop the DAC, not the RZ5D
@@ -540,14 +549,13 @@ class PyStim:
         """
         self.State.running = False
         # if self.State.NI_task is not None:
-            # self.State.NI_task.wait_until_done(timeout=2.0)
-            # self.State.NI_task.close()  # release resources
-            # self.State.NI_task = None  # need to destroy value
-            # self.State.running = False
+        # self.State.NI_task.wait_until_done(timeout=2.0)
+        # self.State.NI_task.close()  # release resources
+        # self.State.NI_task = None  # need to destroy value
+        # self.State.running = False
         # if self.State.NI_digitalin is not None:
         #     self.State.NI_digitalin.close()
         #     self.State.NI_digitalin = None
-
 
     def stop_recording(self):
         """
@@ -556,7 +564,7 @@ class PyStim:
 
         self.RZ5D.setModeStr("Idle")
         i = 0
-        while(self.RZ5D.getModeStr() != "Idle"):
+        while self.RZ5D.getModeStr() != "Idle":
             time.sleep(0.2)
             i += 1
             if i > 25:
@@ -617,9 +625,11 @@ class PyStim:
         # print("Stimulus duration: ", len(self.waveout)/self.Stimulus.out_sampleFreq)
         this_starttime = time.time()
         failed = False
-        self.new_data = False # flag to alert us to new data.
+        self.new_data = False  # flag to alert us to new data.
         self.digital_data = None
-        with nidaqmx.task.Task("NI_DAC_out") as self.State.NI_task, nidaqmx.task.Task("NI_DI_In") as self.State.NI_digitalin:
+        with nidaqmx.task.Task("NI_DAC_out") as self.State.NI_task, nidaqmx.task.Task(
+            "NI_DI_In"
+        ) as self.State.NI_digitalin:
             channel_name = f"/{self.State.NI_devicename:s}/ao0"
             self.State.NI_task.ao_channels.add_ao_voltage_chan(  # can only do this once...
                 channel_name, min_val=-10.0, max_val=10.0, units=VoltageUnits.VOLTS
@@ -637,13 +647,13 @@ class PyStim:
             self.State.NI_task.write(self.waveout, auto_start=False)
 
             self.State.NI_task.triggers.start_trigger.cfg_dig_edge_start_trig(
-                    trigger_source="/Dev1/PFI0",
-                    trigger_edge=Edge.RISING,
-                )
-            
-            for line in [0,1,2,3]:
+                trigger_source="/Dev1/PFI0",
+                trigger_edge=Edge.RISING,
+            )
+
+            for line in [0, 1, 2, 3]:
                 self.State.NI_digitalin.di_channels.add_di_chan(
-                f"/Dev1/port0/line{line:d}",
+                    f"/Dev1/port0/line{line:d}",
                 )
 
             self.State.NI_digitalin.timing.cfg_samp_clk_timing(
@@ -651,16 +661,16 @@ class PyStim:
                 source="/Dev1/ao/SampleClock",
                 # active_edge=Edge.RISING,
                 sample_mode=AcquisitionType.FINITE,
-                samps_per_chan=len(self.waveout)
+                samps_per_chan=len(self.waveout),
             )
 
             # if not self.State.running:
             #     self.State.NI_task.stop()
             #     return False
             # self.arm_NIDAQ()
-        #  self.State.NI_task.triggers.start_trigger.trig_type.DIGITAL_EDGE
+            #  self.State.NI_task.triggers.start_trigger.trig_type.DIGITAL_EDGE
 
-        # print("daq armed")
+            # print("daq armed")
             self.State.NI_digitalin.start()
             self.State.NI_task.start()  # and start it
             # print("    restarting at ", time.time()-self.start_time, "secs since last stim")
@@ -671,44 +681,112 @@ class PyStim:
                     failed = True
                     raise ValueError("arming nidaq/task execution FAILED")
 
-            self.digital_data = np.array(self.State.NI_digitalin.read(len(self.waveout)))
-            print("data shape: ", self.digital_data.shape)
+            self.digital_data = np.array(
+                self.State.NI_digitalin.read(len(self.waveout))
+            )
             self.new_data = True
         self.State.running = False
-        print("prepping plot", self.enable_digital_display)
+
+        # handle some on-line analysis
+        n_erase = 20
+        # print("prepping plot", self.enable_digital_display)
         if self.new_data and self.enable_digital_display:
-            print("ok to plot")
-            t = np.linspace(0, len(self.waveout)/self.Stimulus.out_sampleFreq, len(self.waveout))
-            n_erase = 10
-            thresh = 0.5
-            # if (self.repetition_number % n_erase )== 0:
-            #     print("clearing", n_erase, self.repetition_number)
-            #     self.online_plot.clear()
-            print("data shape: ", self.digital_data.shape)
+            t = np.linspace(
+                0, len(self.waveout) / self.Stimulus.out_sampleFreq, len(self.waveout)
+            )
+            thresh = 0.5  # signal is binary [0, 1]
             tr_x = []
             tr_y = []
+            nchans = self.digital_data.shape[0]
+            channel_step = 0.75 / nchans
+            brushes = [pg.mkBrush(brush) for brush in ["g", "y", "c", "w", "r", "b"]]
+            rep_offset = self.State.controller.trial_count
+            if self.State.controller.searchmode:  # reset every n_erase trials
+                rep_offset = self.State.controller.trial_count % n_erase
+            # print("rep_offset: ", rep_offset, self.State.controller.trial_count)
+            if rep_offset == 0:
+                self.analysis_plots["OnLine"].clear()
+                self.analysis_plots["PSTH"].clear()
+                self.psth_data = []
+                self.isih_data = []
+                self.analysis_plots["ISIH"].clear()
 
-            for i in range(self.digital_data.shape[0]):
+                if self.State.controller.searchmode:
+                    self.analysis_plots["OnLine"].setYRange(0, n_erase)
+                else:
+                    self.analysis_plots["OnLine"].setYRange(
+                        0, self.State.controller.total_trials
+                    )
+            for i in range(nchans):
+                tcross = np.diff(self.digital_data[i, :] > thresh, prepend=False)
+                tindex = np.argwhere(tcross)[::2, 0]
+                tindex = tindex / self.Stimulus.out_sampleFreq
 
-                tcross = np.diff(self.digital_data[i,:] > thresh, prepend=False)
-                tindex = np.argwhere(tcross)[::2,0]
-                # print("tindex: ", tindex)
-                # print("outfreq: ", self.Stimulus.out_sampleFreq)
-                tindex = tindex/self.Stimulus.out_sampleFreq
-                # if len(tindex) == 1:
-                #     continue
-
-                tv = np.ones_like(tindex)+(i % n_erase)/n_erase
-                # mpl.plot(t, n + data[i,:])
-                # print(tv, tindex)
-                # print(len(tindex), len(tv), np.max(tindex), np.min(tindex))
+                tv = np.ones_like(tindex)
+                y_offset = rep_offset + (i * channel_step)
+                tv += y_offset
                 tr_x.extend(tindex)
                 tr_y.extend(tv)
-                self.online_plot.scatterPlot(tindex, tv, 
-                                                 symbolBrush=pg.mkBrush("r"), # (pg.intColor(i, hues=n_erase)), 
-                                                 symbol='o', symbolSize=3)
-            self.online_plot.setXRange(0, 0.5)
-            self.online_plot.setYRange(0, 5)
+                self.analysis_plots["OnLine"].scatterPlot(
+                    tindex,
+                    tv,
+                    symbolBrush=pg.mkBrush(brushes[i]),
+                    symbolPen=pg.mkPen(None),
+                    symbol="o",
+                    symbolSize=3,
+                )
+                if i == 0:
+                    self.psth_data.extend(tindex)
+                    if len(tindex) >= 2:
+                        self.isih_data.extend(
+                            list(np.diff(tindex))
+                        )  # within a single sweep only
+                    psth, bins = np.histogram(self.psth_data, bins=100, range=(0, 0.4))
+                    isih, isibins = np.histogram(
+                        self.isih_data, bins=50, range=(0, 0.2)
+                    )
+                    self.analysis_plots["PSTH"].plot(
+                        bins[:-1],
+                        psth,
+                        stepMode="left",
+                        pen=pg.mkPen(None),
+                        fillBrush=pg.mkBrush("g"),
+                        fillLevel=0,
+                    )
+                    self.analysis_plots["ISIH"].plot(
+                        isibins[:-1],
+                        isih,
+                        stepMode="left",
+                        pen=pg.mkPen(None),
+                        fillBrush=pg.mkBrush("b"),
+                        fillLevel=0,
+                    )
+
+                    # print("PROTOCOL: ", self.protocol)
+                    if self.protocol in ["Tone RI", "Noise RI"]:
+                        self.RI_levels.append(-self.attns)
+                        self.RI_data.append(len(tindex))
+                        self.analysis_plots["RI_plot"].clear()
+                        self.analysis_plots["RI_plot"].plot(
+                            self.RI_levels,
+                            self.RI_data,
+                            color=pg.mkPen("c"),
+                            symbol="o",
+                            symbolSize=6,
+                            pen=pg.mkPen(None),
+                        )
+                        print(self.RI_levels, self.RI_data)
+
+                    if self.protocol in ["FRA"]:
+                        self.analysis_plots["FRA"].plot([self.freq, self.freq], [self.attns, self.attns-len(tindex)], 
+                                                        pen=pg.mkPen('y', width=5, capStyle="square"))
+                        pass  # plot frequency response area
+
+            self.analysis_plots["OnLine"].setXRange(0, 0.5)
+            self.analysis_plots["PSTH"].setXRange(0, 0.5)
+            self.analysis_plots["ISIH"].setXRange(0, 0.2)
+            self.analysis_plots["RI_plot"].setXRange(-120, 0)
+            # self.analysis_plots["OnLine"].setYRange(0, 5)
             # pg.QtGui.QGuiApplication.processEvents()
             self.repetition_number += 1
 

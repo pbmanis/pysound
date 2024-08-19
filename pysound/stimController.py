@@ -28,6 +28,7 @@ import numpy as np
 
 # from backports import configparser
 import pyqtgraph as pg
+import pyqtgraph.dockarea
 import scipy.io.wavfile as wav
 import scipy.signal
 
@@ -44,7 +45,8 @@ pp = pprint.PrettyPrinter(indent=4)
 class Controller(object):
     def __init__(self, ptreedata, plots, img, maingui):
         self.PS = pystim.PyStim(
-            required_hardware=["PA5", "NIDAQ", "RZ5D"]
+            required_hardware=["PA5", "NIDAQ", "RZ5D"],
+            controller=self,
         )  # , 'RP21'])
         self.ptreedata = ptreedata
         self.plots = plots  # access to plotting area
@@ -212,6 +214,11 @@ class Controller(object):
         self.lastfreq = None
         self.lastspl = None
         self.trial_count = 0
+        self.psth_data = []
+        self.isih_data = []
+        self.RI_data = []  # dict of attn: [spike counts] (by trials)
+        self.RI_levels = []
+
         self.TrialTimer.setSingleShot(True)
         self.trial_active = True
         self.maingui.label_status.setText("Running")
@@ -221,7 +228,7 @@ class Controller(object):
         #     self.streamer = tdt.APIStreamer(gizmo='APIStreamer1Ch1', history_seconds=5, callback=self.show_stream_data)
         # print("RZ5D Devices: ", self.PS.RZ5DParams['device_names'])
         gizmonames =self.PS.RZ5D.getGizmoNames()
-        print("Gizmos with API parameters: ",gizmonames)
+        # print("Gizmos with API parameters: ",gizmonames)
         streamer_name = "APIStreamerMC1"
         if streamer_name in gizmonames:
             streamer_pars = self.PS.RZ5D.getParameterNames(streamer_name)
@@ -234,7 +241,16 @@ class Controller(object):
         # print("self.streamer.callback: ", self.streamer.callback)
         else:
             self.PS.enable_digital_display=True
-            self.PS.online_plot = self.maingui.plots['OnLine']
+            self.PS.analysis_plots = self.maingui.plots
+            self.PS.psth_data = self.psth_data
+            self.PS.isih_data = self.isih_data
+            self.PS.RI_data = self.RI_data
+            self.PS.RI_levels = self.RI_levels
+            self.maingui.plots["PSTH"].clear()
+            self.maingui.plots["ISIH"].clear()
+            self.maingui.plots["RI_plot"].clear()
+            self.psth_data = []
+            self.isih_data = []
 
         self.TrialTimer.start(10)  # start (almost) right away  - time is in msec
 
@@ -336,29 +352,34 @@ class Controller(object):
         #     self.StimRecord['Trials'][-1]['Block'] = 1
         match protocol:
             case "Noise Search" | "Tone Search" |  "Click Search":
-                self.play_stimulus(spl=spl, protocol=protocol, save=False)
+                self.play_stimulus(spl=spl, protocol=protocol, frequency=freq, save=False)
 
             case "One Tone": 
-                self.play_stimulus(spl=spl,protocol=protocol,  save=False)
+                self.play_stimulus(spl=spl, protocol=protocol,  frequency=freq, save=False)
 
             case "Tone RI" |"Noise RI":
                 spl = self.stim_vary["Intensity"][self.trial_count]
                 freq = self.CPars["Stimulus"]["Tone Frequency"]
                 print('spl:', spl, "trial: ", self.trial_count)
                 print('Protocol {0:s}  attn: {1:3.1f}'.format(protocol, spl))
-                self.play_stimulus(protocol=protocol, spl=spl, save=True)
+                self.play_stimulus(protocol=protocol, spl=spl, frequency=freq, save=True)
 
             case "FRA":
                 spl = self.stim_vary["Intensity"][self.trial_count]
                 if self.lastspl is None or spl != self.lastspl:
                     time.sleep(self.CPars["Stimulus"]["InterTrial Interval"])
                 freq = self.stim_vary["Frequency"][self.trial_count]
+                self.maingui.plots["FRA"].plot([freq, freq],  # change square color
+                                                   [spl, spl], symbol='s',
+                                                   symbolSize=4, symbolBrush=pg.mkBrush('c'),
+                                                   symbolPen=pg.mkPen('c'))
                 if (
                     self.lastfreq is None or freq != self.lastfreq
                 ):  # determine if we need to calculate the waveform
                     if self.lastfreq is not None:  # add intertrial interval
                         time.sleep(self.CPars["Stimulus"]["InterTrial Interval"])
                     self.lastfreq = freq
+                
                     wave = sound.TonePip(
                         rate=self.PS.Stimulus.out_sampleFreq,
                         duration=self.CPars["Stimulus"]["Duration"]
@@ -377,11 +398,11 @@ class Controller(object):
                         )
                     )
                 )
-                self.play_stimulus(protocol=protocol, spl=spl, save=True)
+                self.play_stimulus(protocol=protocol, spl=spl, frequency=freq, save=True)
 
             case _:  # all other stimulus sets
                 spl = self.CPars["Stimulus"]["Attenuator"]
-                self.play_stimulus(protocol=protocol, spl=spl, save=True)
+                self.play_stimulus(protocol=protocol, spl=spl, frequency=None, save=True)
 
         self.StimRecord["Trials"][-1]["protocol"] = protocol
         self.StimRecord["Trials"][-1]["spl"] = spl
@@ -393,7 +414,7 @@ class Controller(object):
             self.PS.stop_recording()
         time.sleep(0.2)  # allow other events
 
-    def play_stimulus(self, protocol:str, spl: float, save:bool=False):
+    def play_stimulus(self, protocol:str, spl: float, frequency: float, save:bool=False):
         """
         present stimuli stimuli, at a designated SPL
         """
@@ -405,6 +426,7 @@ class Controller(object):
             interstimulus_interval=self.CPars["Stimulus"]["InterStimulus Interval"],
             repetitions=self.CPars["Stimulus"]["Repetitions"],
             attns=self.convert_spl_attn(spl),
+            freq=frequency,
             protocol=protocol,
             storedata=self.StimRecord["savedata"],
         )
@@ -445,7 +467,7 @@ class Controller(object):
 
         if (
             self.searchmode is False
-        ):  # TFR 20180227- only write the .p file is we're not in search mode
+        ):  # TFR 20180227- only write the .p file if we're not in search mode
             # desired sequence of events: determine the tank, write the stimulus info into the Tank/Block?
             # TankLocus= self.tdt.SynapseAPI.getCurrentTank()# if self.maingui.TT.available:
             # # TankLocus.replace("\\",'\')
@@ -453,6 +475,8 @@ class Controller(object):
             # print('protocol?: ',self.StimRecord['Trials'][0]['protocol'])
             # return
             # print('Stimulus info: ',self.BlockString)
+            print("stim record trials: ", self.StimRecord["Trials"])
+
             self.BlockString = self.StimRecord["Trials"][0]["protocol"]
             self.BlockString.replace("  ", "")
             print("Blockstring: ", self.BlockString)
@@ -887,13 +911,13 @@ class Controller(object):
         minspl = np.min(intens)
         maxspl = np.max(intens)
         if clear:
-            self.plots["Plot1"].clear()
+            self.plots["FRA"].clear()
         for i, db in enumerate(intens):
-            self.plots["Plot1"].plot([minf, maxf], [db, db], pen=pg.mkPen("darkgrey", width=0.5))
+            self.plots["FRA"].plot([minf, maxf], [db, db], pen=pg.mkPen("darkgrey", width=0.5))
         for i, fr in enumerate(freqs):
-            self.plots["Plot1"].plot([fr, fr], [minspl, maxspl], pen=pg.mkPen("darkgrey", width=0.5))
-        self.plots['Plot1'].autoRange()
-        self.plots["Plot1"].setLogMode(x=True)
+            self.plots["FRA"].plot([fr, fr], [minspl, maxspl], pen=pg.mkPen("darkgrey", width=0.5))
+        self.plots["FRA"].autoRange()
+        self.plots["FRA"].setLogMode(x=True)
         self.show_FRA(intensities, frequencies, clear=False)
 
 
@@ -925,13 +949,13 @@ class Controller(object):
                 data.append((x,y))
         # print("spots: ", spots)
         if clear:
-            self.plots["Plot1"].clear()
+            self.plots["FRA"].clear()
         self.spi = pg.ScatterPlotItem(
             size=7, pen=pg.mkPen("k"), brush=pg.mkBrush("b"), symbol="s"
         )
         self.spi.setData(x=xs, y=ys, hoverable=True, data=data)
-        self.plots["Plot1"].addItem(self.spi)
-        self.plots["Plot1"].setLogMode(x=True)
+        self.plots["FRA"].addItem(self.spi)
+        self.plots["FRA"].setLogMode(x=True)
 
         return self.spi
 
@@ -1492,29 +1516,63 @@ class BuildGui:
 
         # add space for the graphs
         view = pg.GraphicsView()
-        glayout = pg.GraphicsLayout(border=(50, 50, 50))
-        view.setCentralItem(glayout)
-        self.layout.addWidget(view, 0, 2, 5, 3)  # data plots on right
+
+        self.DockArea = pg.dockarea.DockArea()
+
+        self.Dock_Stimuli = pg.dockarea.Dock("Stimulus Plots")
+        self.Dock_Responses = pg.dockarea.Dock("Response Plots")
+        self.DockArea.addDock(self.Dock_Stimuli)
+        self.DockArea.addDock(self.Dock_Responses, 'below', self.Dock_Stimuli)
+        self.layout.addWidget(self.DockArea, 0, 2, 5, 3)
         self.plots = {}
-        self.plots["Wave"] = glayout.addPlot()
+        
+        # Stimulus waveform/spectrum plots:
+        self.plots["LongTermSpec"] = pg.PlotWidget(title="Long Term Spectrum")
+        self.plots["LongTermSpec"].getAxis("left").setLabel("V", color="#ff0000")
+        self.plots["LongTermSpec"].setTitle("LongTerm Spectrum", color="#ff0000")
+        self.plots["LongTermSpec"].getAxis("bottom").setLabel("F (Hz)", color="#ff0000")
+        self.Dock_Stimuli.addWidget(self.plots["LongTermSpec"], 1, 0, 4, 1)
+
+        self.plots["Wave"] = pg.PlotWidget(title="Waveform")
         self.plots["Wave"].getAxis("left").setLabel("V", color="#ff0000")
         self.plots["Wave"].setTitle("Waveform", color="#ff0000")
         self.plots["Wave"].getAxis("bottom").setLabel("t (sec)", color="#ff0000")
         self.plots["Wave"].setYRange(-1, 1)
+        self.plots["Wave"].setMaximumHeight(250)
+        self.Dock_Stimuli.addWidget(self.plots["Wave"], 0, 0, 1, 1)
 
-        glayout.nextRow()
-        self.plots["LongTermSpec"] = glayout.addPlot()
-        self.plots["LongTermSpec"].getAxis("left").setLabel("V", color="#ff0000")
-        self.plots["LongTermSpec"].setTitle("LongTerm Spectrum", color="#ff0000")
-        self.plots["LongTermSpec"].getAxis("bottom").setLabel("F (Hz)", color="#ff0000")
+        # online analysis plots: Spike raster, PSTH, ISI, RI and FRA
+        self.plots["PSTH"] = pg.PlotWidget(title="PSTH") # this is a PlotItem
+        self.plots["PSTH"].getAxis("left").setLabel("Counts", color="white")
+        self.plots["PSTH"].setTitle("PSTH", color="white")
+        self.plots["PSTH"].getAxis("bottom").setLabel("Time", color="white")
+        self.plots["PSTH"].setMaximumHeight(200)
+        self.PSTH_plot = self.plots["PSTH"].plot([0,0], [0,0], pg.mkPen("g", width=0.35), 
+                                                 stepMode='left', fillBrush=pg.mkBrush("g"), fillLevel=0)  # put someting in the PlotItem
+        self.Dock_Responses.addWidget(self.plots["PSTH"], row=0, col=0, rowspan=1, colspan=1)
 
-        glayout.nextRow()  # add on-line spike analysis plot
-        self.plots["OnLine"] = glayout.addPlot() # this is a PlotItem
-        self.plots["OnLine"].getAxis("left").setLabel("V", color="white")
+        self.plots["OnLine"] = pg.PlotWidget(title="Spike Raster") # this is a PlotItem
+        self.plots["OnLine"].getAxis("left").setLabel("Trial", color="white")
         self.plots["OnLine"].setTitle("Online Analysis", color="white")
         self.plots["OnLine"].getAxis("bottom").setLabel("Time", color="white")
         self.online_plot = self.plots["OnLine"].plot([0,0], [0,0], pg.mkPen("g", width=0.35))  # put someting in the PlotItem
+        self.Dock_Responses.addWidget(self.plots["OnLine"], row=1, col=0, rowspan=3, colspan=1)
 
+        self.plots["ISIH"] = pg.PlotWidget(title="ISI") # this is a PlotItem
+        self.plots["ISIH"].getAxis("left").setLabel("Counts", color="white")
+        self.plots["ISIH"].setTitle("ISIH", color="white")
+        self.plots["ISIH"].getAxis("bottom").setLabel("Time", color="white")
+        self.plots["ISIH"].setMaximumHeight(200)
+        self.ISIH_plot = self.plots["ISIH"].plot([0,0], [0,0], pg.mkPen("g", width=0.35), 
+                                                 stepMode='left', fillBrush=pg.mkBrush("b"), fillLevel=0)  # put someting in the PlotItem
+        self.Dock_Responses.addWidget(self.plots["ISIH"], row=0, col=1, rowspan=1, colspan=1)
+
+        self.plots["RI_plot"] = pg.PlotWidget(title="Rate-Intensity") # this is a PlotItem
+        self.plots["RI_plot"].getAxis("left").setLabel("Spike Counts", color="white")
+        self.plots["RI_plot"].setTitle("Rate-Intensity", color="white")
+        self.plots["RI_plot"].getAxis("bottom").setLabel("Intensity", color="white")
+        self.RI_plot = self.plots["RI_plot"].plot([0,0], [0,0], pg.mkPen("g", width=0.35))  # put someting in the PlotItem
+        self.Dock_Responses.addWidget(self.plots["RI_plot"], row=1, col=1, rowspan=3, colspan=1)
 
         #     if self.spectimage:
         #         self.img = pg.ImageView() # view=self.plots['Spec'])
@@ -1526,17 +1584,16 @@ class BuildGui:
         #     else:
         self.img = None
 
-        glayout.nextRow()
-        l2 = glayout.addLayout(colspan=3, border=(50, 0, 0))  # embed a new layout
-        l2.setContentsMargins(10, 10, 10, 10)
-        self.plots["Plot1"] = l2.addPlot(Title="Plot1")
-        #        self.l2.addWidget(self.plots['Plot1'])
-        self.plots["Plot1"].getAxis("bottom").setLabel("F (kHz)")
-        self.plots["Plot1"].getAxis("left").setLabel("dB ATTN")
-        self.plots["Plot1"].setTitle("FRA")
-        self.plots["Plot1"].setXRange(0, 50, padding=0)
-        # self.plots['Plot1'].setLogMode(x=True)
-        self.plots["Plot1"].setYRange(125, -5, padding=0)
+        # Frequency Response Area
+        self.plots["FRA"] = pg.PlotWidget(title="FRA")
+        #        self.l2.addWidget(self.plots["FRA"])
+        self.plots["FRA"].getAxis("bottom").setLabel("F (kHz)")
+        self.plots["FRA"].getAxis("left").setLabel("dB ATTN")
+        self.plots["FRA"].setTitle("FRA")
+        self.plots["FRA"].setXRange(0, 50, padding=0)
+        # self.plots["FRA"].setLogMode(x=True)
+        self.plots["FRA"].setYRange(125, -5, padding=0)
+        self.Dock_Responses.addWidget(self.plots["FRA"], row=4, col=0, rowspan=2, colspan=2)
 
         #     xd = np.arange(2, 48, 1)
         #    # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
@@ -1550,26 +1607,26 @@ class BuildGui:
         #                 'brush': pg.mkBrush('b')})
         #     self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
         # self.spi.addPoints(spots)
-        # self.plots['Plot1'].addItem(self.spi)
+        # self.plots["FRA"].addItem(self.spi)
         # self.spi.getViewBox().invertY(True)
         # self.spi.sigClicked.connect(self.getClickedLocation)
         # cross hair
         # vLine = pg.InfiniteLine(angle=90, movable=True)
         # hLine = pg.InfiniteLine(angle=0, movable=True)
-        # self.plots['Plot1'].addItem(vLine, ignoreBounds=False)
-        # self.plots['Plot1'].addItem(hLine, ignoreBounds=False)
-        # vb = self.plots['Plot1'].vb
+        # self.plots["FRA"].addItem(vLine, ignoreBounds=False)
+        # self.plots["FRA"].addItem(hLine, ignoreBounds=False)
+        # vb = self.plots["FRA"].vb
 
         # def mouseMoved(evt):
         #     pos = evt[0]  ## using signal proxy turns original arguments into a tuple
-        #     if self.plots['Plot1'].sceneBoundingRect().contains(pos):
+        #     if self.plots["FRA"].sceneBoundingRect().contains(pos):
         #         mousePoint = vb.mapSceneToView(pos)
         #         index = int(mousePoint.x())
         #         if index > 0 and index < len(data1):
         #             label.setText("<span style='font-size: 12pt'>x=%0.1f,   <span style='color: red'>y1=%0.1f</span>,   <span style='color: green'>y2=%0.1f</span>" % (mousePoint.x(), data1[index], data2[index]))
         #         vLine.setPos(mousePoint.x())
         #         hLine.setPos(mousePoint.y())
-        # proxy = pg.SignalProxy(self.plots['Plot1'].scene().sigMouseMoved, rateLimit=60, slot=mouseMoved)
+        # proxy = pg.SignalProxy(self.plots["FRA"].scene().sigMouseMoved, rateLimit=60, slot=mouseMoved)
 
         # self.plots['Plot2'] = pg.plot(Title="Plot2")
         #  self.l2.addWidget(self.plots['Plot2'])
