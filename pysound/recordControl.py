@@ -910,20 +910,13 @@ class BuildGui():
         self.plots['Plot1'].setTitle('FRA')
         self.plots['Plot1'].setXRange(0, 50, padding=0)
         #self.plots['Plot1'].setLogMode(x=True)
-        self.plots['Plot1'].setYRange(125, -5, padding=0)
-        xd = np.arange(2, 48, 1)
-       # xd = np.logspace(np.log2(2), np.log2(64), 50, base=2)
-       # print ('xd: ', xd)
-        yd = np.arange(120, 5, -5)
-        spots = []
         self.lastPoint = None
-        for i in range(xd.shape[0]):
-            for j in range(yd.shape[0]):
-                spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
-                    'brush': pg.mkBrush('b')})
-        self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
-        self.spi.addPoints(spots)
-        self.plots['Plot1'].addItem(self.spi)
+        self.plots['Plot1'].setYRange(125, -5, padding=0)
+        
+        self.plot_FRA(self.CPars['Stimulus']['Intensities'], 
+                     self.CPars['Stimulus']['Intensities'],
+                      clear=True)
+    
         self.spi.getViewBox().invertY(True)
         self.spi.sigClicked.connect(self.getClickedLocation)
         #cross hair
@@ -984,6 +977,20 @@ class BuildGui():
         self.btn_quit.clicked.connect(self.controller.quit)
         self.spect_check.clicked.connect(self.speccheck)
         # self.updateStatusMessage()
+
+    def plot_FRA(self, intseries, freqseries, clear:bool=False):
+        xd = Utility.seqparse(intseries)
+        yd = Utility.seqparse(freqseries)
+        spots = []
+        for i in range(xd.shape[0]):
+            for j in range(yd.shape[0]):
+                spots.append({'pos': (xd[i], yd[j]), 'size': 7, 'pen': {'color': 'k', 'width': 0.5, 'alpha': 0.5},
+                    'brush': pg.mkBrush('b')})
+        if clear:
+            self.plots['Plot1'].clear()
+        self.spi = pg.ScatterPlotItem(size=7, pen=pg.mkPen('k'), brush=pg.mkBrush('b'), symbol='s')
+        self.spi.addPoints(spots)
+        self.plots['Plot1'].addItem(self.spi)
 
     def speccheck(self):
         self.spectimage = self.spect_check.isChecked()

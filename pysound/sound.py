@@ -884,6 +884,7 @@ class RandomSpectrumShape(Sound):
             "dbspl",
             "pip_duration",
             "pip_starts",
+            "ramp_type",
             "ramp_duration",
             "amp_group_size",
             "amp_sd",
@@ -893,7 +894,7 @@ class RandomSpectrumShape(Sound):
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
         
-        if kwds["pip_duration"] < kwds["ramp_duration"] * 2:
+        if kwds["duration"] < kwds["ramp_duration"] * 2:
             raise ValueError("pip_duration must be greater than (2 * ramp_duration).")
         if kwds["f0"] > kwds["rate"] * 0.5:
             raise ValueError("f0 must be less than (0.5 * rate).")
@@ -902,6 +903,7 @@ class RandomSpectrumShape(Sound):
 
     def generate(self):
         o = self.opts
+        assert o["ramp_type"] in ['linear', 'cos2']
         octaves = o["octaves"]
         spacing = o["spacing"]
         lowf = o["f0"] / octaves
@@ -926,7 +928,7 @@ class RandomSpectrumShape(Sound):
         if db == None:
             db = 80.0
         groupsize = o["amp_group_size"]
-        print("groupsize: ", groupsize, "sd: ", o["amp_sd"])
+        # print("groupsize: ", groupsize, "sd: ", o["amp_sd"])
         # compute the distribution of amplitudes across the tones in the stimulus
         for i in range(0, len(freqlist), groupsize):
 
@@ -934,9 +936,9 @@ class RandomSpectrumShape(Sound):
                 a = np.random.normal(scale=o["amp_sd"])
             else:
                 a = 0
-            print("i: ", i, a)
+            # print("i: ", i, a)
             amplist[i : i + groupsize] = a + db
-        print("RSS amplitudes: ", set(amplist))
+        # print("RSS amplitudes: ", set(amplist))
         rng = np.random.default_rng()
         phase = np.pi * 2.0 * rng.standard_normal(len(freqlist))
         for i in range(len(freqlist)):
