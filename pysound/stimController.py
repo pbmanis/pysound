@@ -176,9 +176,7 @@ class Controller(object):
         isi = self.CPars["Stimulus"][
             "InterStimulus Interval"
         ]  # time between stimuli, when doing repeats (repetitions > 1)
-        iti = self.CPars["Stimulus"][
-            "InterTrial Interval"
-        ]  # time between trials in RI and FRA, e.g., when stimulus is changed
+       
         self.StimRecord = {}
 
         # if isi > iti:
@@ -234,6 +232,7 @@ class Controller(object):
             streamer_pars = self.PS.RZ5D.getParameterNames(streamer_name)
             # print("streamer paremters: ", streamer_pars)
             self.PS.RZ5D.getGizmoInfo(streamer_name)
+        print("Gizmo Names: ", gizmonames)
         if "APIStreamerMC1" in self.PS.RZ5DParams["device_names"]:
             self.streamer = tdt.APIStreamer(gizmo = streamer_name, history_seconds=2,
                                              callback=self.show_stream_data, verbose=True)
@@ -367,7 +366,7 @@ class Controller(object):
             case "FRA":
                 spl = self.stim_vary["Intensity"][self.trial_count]
                 if self.lastspl is None or spl != self.lastspl:
-                    time.sleep(self.CPars["Stimulus"]["InterTrial Interval"])
+                    time.sleep(self.CPars["Stimulus"]["InterStimulus Interval"])
                 freq = self.stim_vary["Frequency"][self.trial_count]
                 self.maingui.plots["FRA"].plot([freq, freq],  # change square color
                                                    [spl, spl], symbol='s',
@@ -377,7 +376,7 @@ class Controller(object):
                     self.lastfreq is None or freq != self.lastfreq
                 ):  # determine if we need to calculate the waveform
                     if self.lastfreq is not None:  # add intertrial interval
-                        time.sleep(self.CPars["Stimulus"]["InterTrial Interval"])
+                        time.sleep(self.CPars["Stimulus"]["InterStimulus Interval"])
                     self.lastfreq = freq
                 
                     wave = sound.TonePip(
@@ -656,8 +655,8 @@ class Controller(object):
                 pip_duration=self.CPars["Stimulus"]["Duration"],
                 pip_starts=[self.CPars["Stimulus"]["Delay"]],
                 ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                fmod=self.CPars["Modulation/CMMR"]["Frequency"],
-                dmod=self.CPars["Modulation/CMMR"]["Depth"],
+                fmod=self.CPars["SAM"]["Modulation Frequency"],
+                dmod=self.CPars["SAM"]["Modulation Depth"],
                 seed=seed,
             )
 
@@ -699,8 +698,8 @@ class Controller(object):
                 pip_duration=self.CPars["Stimulus"]["Duration"],
                 pip_starts=[self.CPars["Stimulus"]["Delay"]],
                 ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                fmod=self.CPars["Modulation/CMMR"]["Frequency"],
-                dmod=0.0,
+                # fmod=self.CPars["SAM"]["Modulation Frequency"],
+                # dmod=self.CPars["SAM"]["Modulation Depth"],
                 seed=seed,
             )
         elif stim in ["Noise Train"]:
@@ -725,7 +724,7 @@ class Controller(object):
                         self.CPars["Noise Train"]["Interval"],
                     ),
                     ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                    # fmod=self.CPars["Modulation/CMMR"]["Frequency"],
+                    # fmod=self.CPars["CMMR"]["Frequency"],
                     # dmod=0.0,
                     seed=seed,
                 )
@@ -739,7 +738,7 @@ class Controller(object):
                     pip_duration=self.CPars["Noise Train"]["Duration"],
                     pip_starts=np.arange(self.CPars["Stimulus"]["Delay"], 1),
                     ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                    # fmod=self.CPars["Modulation/CMMR"]["Frequency"],
+                    # fmod=self.CPars["CMMR"]["Frequency"],
                     # dmod=0.0,
                     seed=seed,
                 )
@@ -752,7 +751,7 @@ class Controller(object):
         #                     f0=self.CPars['Stimulus']['Tone Frequency']*1000., dbspl=level,
         #                     pip_duration=self.CPars['Stimulus']['Duration'], pip_start=[self.CPars['Stimulus']['Delay']],
         #                     ramp_duration=self.CPars['Stimulus']['Rise-Fall']/1000.,
-        #                     fmod=self.CPars['Modulation/CMMR']['Frequency'], dmod=0., seed=seed)
+        #                     fmod=self.CPars['CMMR']['Frequency'], dmod=0., seed=seed)
         elif stim in ["Noise SAM"]:
             wave = sound.SAMNoise(
                 rate=Fs,
@@ -763,8 +762,8 @@ class Controller(object):
                 pip_duration=self.CPars["Stimulus"]["Duration"],
                 pip_starts=[self.CPars["Stimulus"]["Delay"]],
                 ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                fmod=self.CPars["Modulation/CMMR"]["Frequency"],
-                dmod=self.CPars["Modulation/CMMR"]["Depth"],
+                fmod=self.CPars["SAM"]["Modulation Frequency"],
+                dmod=self.CPars["SAM"]["Modulation Depth"],
                 seed=seed,
             )
 
@@ -822,8 +821,8 @@ class Controller(object):
                 centerfreq=self.CPars["Noise Bands"]["CF"] * 1000.0,
             )
 
-        elif stim in ["DMR"]:
-            wave = sound.DynamicRipple(rate=Fs, duration=5.0)
+        # elif stim in ["DMR"]:
+        #     wave = sound.DynamicRipple(rate=Fs, duration=5.0)
 
         elif stim in [
             "CMMR"
@@ -831,22 +830,43 @@ class Controller(object):
             # flankingPhase is comodulated or codeviant or random (if type is not None)
             # spacing is band spacing in octaves (for flanking bands)
             #
-            wave = sound.ComodulationMasking(
-                rate=Fs,
-                duration=self.CPars["Stimulus"]["Duration"]
-                + self.CPars["Stimulus"]["Delay"],
-                pip_duration=self.CPars["Stimulus"]["Duration"],
-                pip_starts=[self.CPars["Stimulus"]["Delay"]],
-                f0=self.CPars["Stimulus"]["Tone Frequency"] * 1000.0,
-                ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
-                dbspl=level,
-                fmod=self.CPars["Modulation/CMMR"]["Frequency"],
-                dmod=self.CPars["Modulation/CMMR"]["Depth"],
-                flanking_type=self.CPars["Modulation/CMMR"]["CMMR Flanking Type"],
-                flanking_spacing=self.CPars["Modulation/CMMR"]["CMMR Flanking Spacing"],
-                flanking_phase=self.CPars["Modulation/CMMR"]["CMMR Flanking Phase"],
-                flanking_bands=self.CPars["Modulation/CMMR"]["CMMR Flanking Bands"],
-            )
+            wave = sound.ComodulationMasking(rate=Fs,
+                                    duration=self.CPars["Stimulus"]["Duration"], 
+                                    target_f0 = self.CPars["CMMR"]["Target Frequency"] * 1000.0,
+                                    masker_f0 = self.CPars["CMMR"]["Masker Frequency"] * 1000.0,
+                                    masker_delay=self.CPars["CMMR"]["Masker Delay"],  # 0.1
+                                    masker_duration=self.CPars["CMMR"]["Masker Duration"], # 0.3
+                                    target_delay=self.CPars["CMMR"]["Target Delay"], # =0.3, 
+                                    target_duration =self.CPars["CMMR"]["Target Duration"], # =0.3,
+                                    target_spl= self.CPars["CMMR"]["Target SPL"], # 40,
+                                    masker_spl= self.CPars["CMMR"]["Masker SPL"], # 40, 
+                                    fmod=self.CPars["CMMR"]["Modulation Frequency"], #10.0, 
+                                    dmod=self.CPars["CMMR"]["Modulation Depth"], # 100,
+                                    ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0, # 0.0025,
+                                    flanking_type=self.CPars["CMMR"]["CMMR Flanking Type"],
+                                    flanking_spacing=self.CPars["CMMR"]["CMMR Flanking Spacing"], # 0.5, octaves
+                                    flanking_phase=self.CPars["CMMR"]["CMMR Flanking Phase"], # 
+                                    flanking_bands=self.CPars["CMMR"]["CMMR Flanking Bands"], # 3,
+                                    output="Signal", # output could also be other values for testing
+                                    )
+            
+            # Original:
+            # wave = sound.ComodulationMasking(
+            #     rate=Fs,
+            #     duration=self.CPars["Stimulus"]["Duration"]
+            #     + self.CPars["Stimulus"]["Delay"],
+            #     pip_duration=self.CPars["Stimulus"]["Duration"],
+            #     pip_starts=[self.CPars["Stimulus"]["Delay"]],
+            #     f0=self.CPars["Stimulus"]["Tone Frequency"] * 1000.0,
+            #     ramp_duration=self.CPars["Stimulus"]["Rise-Fall"] / 1000.0,
+            #     dbspl=level,
+            #     fmod=self.CPars["CMMR"]["Frequency"],
+            #     dmod=self.CPars["CMMR"]["Depth"],
+            #     flanking_type=self.CPars["CMMR"]["CMMR Flanking Type"],
+            #     flanking_spacing=self.CPars["CMMR"]["CMMR Flanking Spacing"],
+            #     flanking_phase=self.CPars["CMMR"]["CMMR Flanking Phase"],
+            #     flanking_bands=self.CPars["CMMR"]["CMMR Flanking Bands"],
+            # )
 
         elif stim in ["SSN"]:  # speech shaped noise
             # read the file:
@@ -1084,7 +1104,7 @@ class BuildGui:
                             "Clicks",
                             "CMMR",
                             "RSS",
-                            "DMR",
+                            # "DMR",
                             "SSN",
                             "Tone SAM",
                             "Noise SAM",
@@ -1143,22 +1163,22 @@ class BuildGui:
                         "default": 1,
                         "tip": "Number of Stimuli per sweep",
                     },
-                    {
-                        "name": "InterTrial Interval",
-                        "type": "float",
-                        "value": 1.0,
-                        "limits": [0.2, 300.0],
-                        "suffix": "s",
-                        "default": 1.0,
-                        "tip": "Time between sweeps (trials) in FRA and RI protocols",
-                    },
+                    # {
+                    #     "name": "InterTrial Interval",
+                    #     "type": "float",
+                    #     "value": 1.0,
+                    #     "limits": [0.2, 300.0],
+                    #     "suffix": "s",
+                    #     "default": 1.0,
+                    #     "tip": "Time between sweeps (trials) in FRA and RI protocols",
+                    # },
                     {
                         "name": "InterStimulus Interval",
                         "type": "float",
-                        "value": 0.05,
-                        "limits": [0.02, 300.0],
+                        "value": 1.0,
+                        "limits": [0.2, 30.0],
                         "suffix": "s",
-                        "default": 0.05,
+                        "default": 1.0,
                         "tip": "Time between repeated stimuli in a sweep",
                     },
                     {
@@ -1224,6 +1244,31 @@ class BuildGui:
                 ],
             },
             {
+                "name": "SAM",
+                "type": "group",
+                "expanded": False,
+                "children": [
+                     {
+                        "name": "Modulation Frequency",
+                        "type": "float",
+                        "value": 10.0,
+                        "step": 1.0,
+                        "limits": [1.0, 400.0],
+                        "suffix": "Hz",
+                        "default": 10.0,
+                    },
+                    {
+                        "name": "Modulation Depth",
+                        "type": "float",
+                        "value": 0.0,
+                        "step": 5.0,
+                        "limits": [0.0, 200.0],
+                        "suffix": "%",
+                        "default": 0.0,
+                    },
+                ]
+            },
+            {
                 "name": "FMSweep",
                 "type": "group",
                 "expanded": False,
@@ -1262,27 +1307,107 @@ class BuildGui:
                 ],
             },
             {
-                "name": "Modulation/CMMR",
+                "name": "CMMR",
                 "type": "group",
                 "expanded": False,
                 "children": [
                     {
-                        "name": "Frequency",
+                        'name': "Presets",
+                        "type": "list",
+                        "limits": ["Verhey/Winter", "Target", "OFM+Target", "CM", "CD", "None",],
+                        "value": "None",
+                        
+                    },
+                    
+                    {
+                        "name": "Target Frequency",
                         "type": "float",
-                        "value": 40.0,
-                        "step": 5.0,
-                        "limits": [1.0, 1000.0],
-                        "suffix": "Hz",
+                        "value": 4.0,
+                        "step": 1.0,
+                        "limits": [1.0, 80000.0],
+                        "suffix": "kHz",
                         "default": 40.0,
                     },
-                    {
-                        "name": "Depth",
+                     {
+                        "name": "Target SPL",
                         "type": "float",
-                        "value": 50.0,
+                        "value": 75.0,
+                        "step": 5,
+                        "limits": [0, 90.],
+                        "suffix": "dBSPL",
+                        "default": 75,
+                    },
+                    {
+                        "name": "Target Delay",
+                        "type": "float",
+                        "value": 0.3,
+                        "step": 0.01,
+                        "limits": [0.1, 5.0],
+                        "suffix": "s",
+                        "default": 0.3,
+                    },
+                    {
+                        "name": "Target Duration",
+                        "type": "float",
+                        "value": 0.3,
+                        "step": 0.01,
+                        "limits": [0.1, 5.0],
+                        "suffix": "s",
+                        "default": 0.3,
+                    },
+                     {
+                        "name": "Masker Frequency",
+                        "type": "float",
+                        "value": 4.0,
+                        "step": 1.0,
+                        "limits": [1.0, 80000.0],
+                        "suffix": "kHz",
+                        "default": 4.0,
+                    },
+                     {
+                        "name": "Masker SPL",
+                        "type": "float",
+                        "value": 75.0,
+                        "step": 5,
+                        "limits": [0, 90.],
+                        "suffix": "dBSPL",
+                        "default": 75,
+                    },
+                     {
+                        "name": "Masker Delay",
+                        "type": "float",
+                        "value": 0.1,
+                        "step": 0.01,
+                        "limits": [0.1, 5.0],
+                        "suffix": "s",
+                        "default": 0.1,
+                    },
+                    {
+                        "name": "Masker Duration",
+                        "type": "float",
+                        "value": 0.5,
+                        "step": 0.01,
+                        "limits": [0.1, 5.0],
+                        "suffix": "s",
+                        "default": 0.5,
+                    },
+                     {
+                        "name": "Modulation Frequency",
+                        "type": "float",
+                        "value": 10.0,
+                        "step": 1.0,
+                        "limits": [1.0, 400.0],
+                        "suffix": "Hz",
+                        "default": 10.0,
+                    },
+                    {
+                        "name": "Modulation Depth",
+                        "type": "float",
+                        "value": 100.0,
                         "step": 5.0,
                         "limits": [0.0, 200.0],
                         "suffix": "%",
-                        "default": 50.0,
+                        "default": 100.0,
                     },
                     {
                         "name": "CMMR Flanking Type",
@@ -1299,22 +1424,23 @@ class BuildGui:
                     {
                         "name": "CMMR Flanking Bands",
                         "type": "int",
-                        "value": 2,
+                        "value": 3,
                         "step": 1,
                         "limits": [0, 10],
-                        "default": 2,
+                        "default": 3,
                     },
                     {
                         "name": "CMMR Flanking Spacing",
                         "type": "float",
-                        "value": 1,
+                        "value": 0.5,
                         "step": 1 / 8.0,
                         "limits": [1 / 16.0, 2.0],
                         "suffix": "octaves",
-                        "default": 1,
+                        "default": 0.5,
                     },
                 ],
             },
+
             {
                 "name": "RSS Params",
                 "type": "group",
