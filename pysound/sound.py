@@ -72,6 +72,15 @@ class Sound(object):
         return self._sound
 
     @property
+    def inspect_sound(self):
+        """
+        :obj:`array`: The generated sound array, expressed in Pascals.
+        """
+        if self._sound is None:
+            self._sound = self.generate()   
+        return self
+    
+    @property
     def time(self):
         """
         :nparray: The time array to go with the sound.
@@ -614,11 +623,26 @@ class SAMTone(Sound):
 
 class ComodulationMasking(Sound):
     """
-    rate=Fs, duration=self.duration, f0=self.tone_frequency*1000.,
-                   dbspl=level, fmod=self.fMod, dmod=self.dMod,
-                   flanking_type=self.CMMR_flanking_type, flanking_spacing=self.CMMR_flanking_spacing,
-                   flanking_phase=self.CMMR_flanking_phase, flanking_bands=self.CMMR_flanking_bands,
-                   )
+
+    rate is the sample rate (Hz) for the stimulus
+    duration is the ENTIRE duration of the stimulus (seconds)
+    ramp_duration is the cos^2 ramp duration (seconds)
+    masker_spl is the sound pressure level of the masker (dB SPL)
+    target_spl is the sound pressure level of the target (dB SPL)
+    masker_delay is the delay to the start of the stimulus (seconds)
+    masker_duration is the duration of the masker tone pip (seconds)
+    f0 is the center frequency of the target and the on-frequency masker (Hz)
+    target_duration is the duration of the target tone pip (seconds)
+    target_delay is the delay to the start of the tone pip (seconds)
+    fmod is the modulation frequency (sinusoidal) (Hz)
+    dmod is the modulation depth (0-1) (unitless)
+    flanking_type is the type of flanking noise: str (
+        options are : narrow band noise: NBNoise, multiple tones: MultiTone
+    flanking_spacing is the spacing of the flanking tones in octaves (float)
+    flanking_bands is the number of flanking tones on each side of the on-frequency target/masker (int)
+    flanking_phase is the phase relationship of the flanking tones to the masker (str: 
+        options are:  Comodulated, Codeviant, Random
+
 
     """
 
@@ -626,83 +650,100 @@ class ComodulationMasking(Sound):
         for k in [
             "rate",
             "duration",
-            "pip_duration",
-            "f0",
-            "dbspl",
+            "masker_spl",
+            "target_spl",
+            "masker_delay",
+            "masker_duration",
+            "target_f0",
+            "masker_f0",
+            "target_duration",
+            "target_delay",
             "fmod",
             "dmod",
-            "pip_starts",
             "ramp_duration",
             "flanking_type",
             "flanking_spacing",
             "flanking_phase",
             "flanking_bands",
+            "output"
         ]:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
         Sound.__init__(self, **kwds)
 
+
     def generate(self):
         """ first check parameters"""
         o = self.opts
 
-        assert o["flanking_phase"] in ['Comodulated', 'Codeviant', 'Random'] 
+        assert o["flanking_phase"] in ['Comodulated', 'Codeviant', 'Random']
+        assert o["output"] in  ["Signal", 'Target', 'OFM', 'Flanking', 'Target+OFM'] 
         assert o["flanking_bands"] in [0, 1, 2, 3, 4, 5]
         assert o["flanking_spacing"] > 0.05 and o['flanking_spacing'] < 3
-        assert o["flanking_type"] in ["MultiTone", "NBNoise"]
+        assert o["flanking_type"] in ["MultiTone", "NBNoise", "None"]
         assert (o["fmod"] > 0.5) and (o['fmod'] < 1000)
-        assert (o["dmod"] >= 0) and (o['dmod'] < 100.)
+        assert (o["dmod"] >= 0) and (o['dmod'] <= 100.)
+        assert (o['masker_duration'] + o['masker_delay']) < o['duration']
+        assert (o['target_duration'] + o['target_delay']) < o['duration']
+        assert (o['masker_duration'] + o['masker_delay']) == (o['target_duration'] + o['target_delay'])
+        assert (o['masker_duration'] + o['masker_delay']) > 0.1
 
+        # print("CMMR Values: \n", o)
+        if o['masker_f0'] is None:
+            o['masker_f0'] = o['target_f0']
+        # start with target tone
+        tardelay = 0.5 / o["fmod"]  # delay target by one half cycle of the modulation frequency
 
-        # start with center tone
-        onfreqmasker = piptone(
+        targettone = piptone(
             self.time,
             duration=o["duration"],
             ramp=o["ramp_duration"],
             rate=o["rate"],
-            f0=o["f0"],
-            dbspl=o["dbspl"],
-            pip_dur=o["pip_duration"],
-            pip_starts=o["pip_starts"],
+            f0=o["target_f0"],
+            dbspl=o["target_spl"],
+            pip_dur=o["target_duration"],
+            pip_starts=[o["target_delay"]-tardelay],
         )
-        onfreqmasker = sinusoidal_modulation(
+        # so it is out of phase with the masker
+        targettone = sinusoidal_modulation(
             self.time,
-            basestim=onfreqmasker,
-            tstart=o["pip_starts"],
+            basestim=targettone,
+            tstart=o["target_delay"],
             fmod=o["fmod"],
             dmod=o["dmod"],
-            phase_shift=0.0,
+            phase_shift=np.pi,  # the phase shift is in radians.
         )
-        tardelay = 0.5 / o["fmod"]  # delay by one half cycle
-        target = piptone(
+        # print(f"Target tone: {o['target_spl']:.1f} {np.min(targettone):.3f} {np.max(targettone):.3f}")
+        on_freq_maskertone = piptone(
             self.time,
             duration=o['duration'],
             ramp=o["ramp_duration"],
             rate=o["rate"],
-            f0=o["f0"],
-            dbspl=o["dbspl"],
-            pip_dur=o["pip_duration"] - tardelay,
-            pip_starts=[p + tardelay for p in o["pip_starts"]],
+            f0=o["masker_f0"],
+            dbspl=o["masker_spl"],
+            pip_dur=o["masker_duration"],
+            pip_starts=[o["masker_delay"]],
         )
-        target = sinusoidal_modulation(
+        on_freq_maskertone = sinusoidal_modulation(
             self.time,
-            basestim=target,
-            tstart=[p + tardelay for p in o["pip_starts"]],
+            basestim=on_freq_maskertone,
+            tstart=[o["masker_delay"]],
             fmod=o["fmod"],
             dmod=o["dmod"],
             phase_shift=0.0,
         )
+        # print(f"Masker tone: {o['masker_spl']:.1f} {np.min(targettone):.3f} {np.max(targettone):.3f}")
+        # maskertone = np.zeros_like(maskertone)
         if o["flanking_type"] == "None":
-            return (onfreqmasker + target) / 2.0  # scaling...
+            return (on_freq_maskertone + targettone) / 2.0  # scaling...
         if o["flanking_type"] in ["MultiTone"]:
             nband = o["flanking_bands"]
             octspace = o["flanking_spacing"]
-            f0 = o["f0"]
+            f0 = o["target_f0"]
             flankfs = [f0 * (2 ** (octspace * (k + 1))) for k in range(nband)]
             flankfs.extend([f0 / ((2 ** (octspace * (k + 1)))) for k in range(nband)])
             flankfs = sorted(flankfs)
             flanktone = [[]] * len(flankfs)
-
 
             for i, fs in enumerate(flankfs):
                 match o["flanking_phase"]:
@@ -720,12 +761,12 @@ class ComodulationMasking(Sound):
                     ramp=o["ramp_duration"],
                     rate=o["rate"],
                     f0=flankfs[i],
-                    dbspl=o["dbspl"],
-                    pip_dur=o["pip_duration"],
-                    pip_starts=o["pip_starts"],
+                    dbspl=o["masker_spl"],
+                    pip_dur=o["masker_duration"],
+                    pip_starts=[o["masker_delay"]],
                     pip_phase=phaseshift,
                 )
-        print('type, phase: ', o['flanking_type'], o['flanking_phase'])
+        # print('type, phase: ', o['flanking_type'], o['flanking_phase'])
         if o["flanking_type"] == "NBnoise":
             raise ValueError("Flanking type nbnoise not yet implemented")
         if o["flanking_phase"] == "Comodulated":
@@ -750,14 +791,24 @@ class ComodulationMasking(Sound):
         # print(('flanking freqs: ', flankfs))
         for i, fs in enumerate(flankfs):
             flanktone[i] = sinusoidal_modulation(
-                self.time, flanktone[i], o["pip_starts"], o["fmod"], o["dmod"], ph[i]
+                self.time, flanktone[i], o["masker_delay"], o["fmod"], o["dmod"], ph[i]
             )
             if i == 0:
                 maskers = flanktone[i]
             else:
                 maskers = maskers + flanktone[i]
-        signal = (onfreqmasker + maskers + target) / (o["flanking_bands"] + 2)
-        return signal
+        signal = (on_freq_maskertone + maskers + targettone) / (o["flanking_bands"] + 2)
+        # select what we want to plot
+        if o["output"] == "Signal":
+            return signal
+        elif o["output"] == "Target":
+            return targettone
+        elif o["output"] == "OFM":
+            return on_freq_maskertone
+        elif o["output"] == "Flanking":
+            return maskers
+        elif o["output"] == "Target+OFM":
+            return targettone + on_freq_maskertone
 
 
 class DynamicRipple(Sound):
@@ -816,6 +867,8 @@ class RandomSpectrumShape(Sound):
     Amplitude SD (amp_sd)
     Frequency range (octaves above and below f0) (octaves)
     spacing (fraction of octave: e.g, 1/8 or 1/64 as 8 or 64) (spacing)
+    The tones are log space in 1/64 octave, then grouped into 
+    sets of 4 or 8 to adjust the amplitudes.
 
     Generates one sample
 
@@ -839,6 +892,7 @@ class RandomSpectrumShape(Sound):
         ]:
             if k not in kwds:
                 raise TypeError("Missing required argument '%s'" % k)
+        
         if kwds["pip_duration"] < kwds["ramp_duration"] * 2:
             raise ValueError("pip_duration must be greater than (2 * ramp_duration).")
         if kwds["f0"] > kwds["rate"] * 0.5:
@@ -849,46 +903,65 @@ class RandomSpectrumShape(Sound):
     def generate(self):
         o = self.opts
         octaves = o["octaves"]
+        spacing = o["spacing"]
         lowf = o["f0"] / octaves
         highf = o["f0"] * octaves
+        # print("lowf: %8.3f  highf: %8.3f" % (lowf, highf), octaves)
+        # print("log2 low: ", np.log2(lowf), "log2 high: ", np.log2(highf), "num: ", int(octaves*64.))
+        
+        # compute the frequencies to be used in this stimulus
+        # frequencies are log-spaced
         freqlist = np.logspace(
             np.log2(lowf),
             np.log2(highf),
-            num=int(o["spacing"] * octaves * 2),
+            num=int(octaves*64.),
             endpoint=True,
             base=2,
         )
         amplist = np.zeros_like(freqlist)
+        # print("RSS frequencies: ", freqlist)
+ 
         db = o["dbspl"]
         # assign amplitudes
         if db == None:
-            db = 100.0
+            db = 80.0
         groupsize = o["amp_group_size"]
+        print("groupsize: ", groupsize, "sd: ", o["amp_sd"])
+        # compute the distribution of amplitudes across the tones in the stimulus
         for i in range(0, len(freqlist), groupsize):
+
             if o["amp_sd"] > 0.0:
                 a = np.random.normal(scale=o["amp_sd"])
             else:
-                a = 0.0
-            amplist[i : i + groupsize] = 20 * np.log10(a + db)
+                a = 0
+            print("i: ", i, a)
+            amplist[i : i + groupsize] = a + db
+        print("RSS amplitudes: ", set(amplist))
+        rng = np.random.default_rng()
+        phase = np.pi * 2.0 * rng.standard_normal(len(freqlist))
         for i in range(len(freqlist)):
-            #            print(' f: %8.3f   a: %8.1f' % (freqlist[i], amplist[i]))
             wave = piptone(
                 self.time,
+                duration=o["duration"],
                 ramp=o["ramp_duration"],
                 rate=o["rate"],
                 f0=freqlist[i],
                 dbspl=amplist[i],
                 pip_dur=o["pip_duration"],
                 pip_starts=o["pip_starts"],
-                pip_phase=np.pi * 2 * np.random.rand(),
+                pip_phase = phase[i],
             )
             if i == 0:
                 result = wave
             else:
                 result = result + wave
         # import matplotlib.pyplot as mpl
-        # mpl.plot(self.time, result)
-        return result / len(freqlist)  # scale by number of sinusoids added
+        # f, ax = mpl.subplots(2, 1)
+        # ax[0].plot(self.time, result)
+        # ax[1].stairs(amplist[:-1], freqlist)
+        # ax[1].set_xscale('log')
+        # mpl.show()
+        return result # / len(freqlist)  # scale by number of sinusoids added
 
 
 ########################################################
@@ -908,15 +981,13 @@ def pa_to_dbspl(pa, ref=20e-6):
     return 20 * np.log10(pa / ref)
 
 
-def dbspl_to_pa(dbspl, ref=20e-6):
+def dbspl_to_pa(dbspl:float, ref:float=20e-6):
     """Convert dBSPL to Pascals (rms). By default, the reference pressure is
     20 uPa.
     """
-    if dbspl is not None:
-        return 1.0
-    else:
-        return ref * 10 ** (dbspl / 20)
-
+    pascals =  ref * 10.0 ** (dbspl / 20.0)
+    # print(f"dbspl_to_pa: {dbspl:.2f}  ref: {ref:.2e}, pa: {pascals:.3e}")
+    return pascals
 
 def linearramp(pin, mxpts, irpts):
     """
@@ -1005,16 +1076,18 @@ def piptone(
     pip = np.sin(
         2 * np.pi * f0 * pip_t + pip_phase
     )  # unramped stimulus, scaled -1 to 1
+    # print("\npip unscaled: [-1 to 1]", np.min(pip), np.max(pip))
+    # print("dbspl: ", dbspl)
     if dbspl is not None:
         pip = np.sqrt(2) * dbspl_to_pa(dbspl) * pip  # unramped stimulus
     else:
         pass  # no need to scale here
-
+    # print("pip scaled: ", np.min(pip), np.max(pip))
     # add onset/offset ramps inside the duration of the pip
     ramp_pts = int(ramp * rate) + 1
-    ramp = np.sin(np.linspace(0, np.pi / 2.0, ramp_pts)) ** 2
-    pip[:ramp_pts] *= ramp
-    pip[-ramp_pts:] *= ramp[::-1]
+    ramparray = np.sin(np.linspace(0, np.pi / 2.0, ramp_pts)) ** 2
+    pip[:ramp_pts] *= ramparray
+    pip[-ramp_pts:] *= ramparray[::-1]
     if not isinstance(pip_starts, list):
         raise ValueError("pip_starts must be a list of start times")
     # apply template to waveform
@@ -1022,7 +1095,7 @@ def piptone(
     pin = np.zeros(int(duration*rate))
     for start in pip_starts:
         ts = int(np.floor(start * rate))
-        print("ts: ", ts, "len pip: ", len(pip), "len pin: ", len(pin), duration, rate)
+        # print("ts: ", ts, "len pip: ", len(pip), "len pin: ", len(pin), duration, rate)
         pin[ts : ts + len(pip)] += pip
 
     return pin
@@ -1168,7 +1241,7 @@ def sinusoidal_modulation(
     """
 
     env = 1.0 + (dmod / 100.0) * np.sin(
-        (2.0 * np.pi * fmod * (t - tstart)) + phase_shift - np.pi / 2
+        (2.0 * np.pi * fmod * (t - tstart)) + phase_shift - (np.pi / 2.)
     )  # envelope...
     return basestim * env
 
@@ -1404,11 +1477,24 @@ def signalFilterButter(
     w = scipy.signal.lfilter(filter_b, filter_a, signal)  # filter the incoming signal
     return w
 
-#*******************************************************TESTS ******************************************
+#*******************************************************
+#                       TESTS 
+# ******************************************************
+def play_wave(wave, rate):
+    # downsample wave for speaker
+    twave = np.linspace(0, len(wave)/rate, len(wave))
+    tmax = np.max(twave)
+    newrate = 44100
+    tnew = np.arange(0, tmax, 1./newrate)
+
+    dwave = np.interp(tnew, twave, wave)
+    sounddevice.play(dwave, 44100)
+    time.sleep(1)
+
 def test_noise_bandpass():
 
     """
-    based on nelken and young, 1994.
+    based on Nelken and Young, 1994.
     There are other ways to do this however.
     
     """
@@ -1445,6 +1531,9 @@ def test_noise_bandpass():
     fb1 = signalFilter_LPFButter(w1, nbw, Fs)
     fb2 = signalFilter_LPFButter(w2, nbw, Fs)
     rn = fb1 * np.cos(2 * np.pi * f0 * t) + fb2 * np.sin(2 * np.pi * f0 * t)
+
+    play_wave(rn, Fs)
+
     fx2, Pxx_spec2 = scipy.signal.periodogram(rn, Fs)
     ax2 = mpl.subplot(312)
     ax2.plot(fx2, Pxx_spec2, "b-")
@@ -1492,24 +1581,74 @@ def test_noise_pip():
     mpl.plot(wave1.time, wave1.sound)
     mpl.show()
 
+def test_RSS():
+    rate=100000.
+    
+    wave1 = RandomSpectrumShape(
+        rate=rate,
+        duration=1.0,
+        f0=4000.,
+        dbspl=80.,
+        pip_duration=0.4,
+        pip_starts=[0.05],
+        ramp_duration=0.005,
+        amp_group_size=8,  # typically 4 or 8 for RSS
+        amp_sd=12.0,  # as used by Young and Calhoun, 2005, Yu and Young, 2000 and Li et al., 2015
+        spacing=1./8.,  # between stimuli, 1/8 octave
+        octaves=4,  # width of stimulus
+    )
+    f, ax = mpl.subplots(2, 1, figsize=(10, 8))
+    fx2, Pxx_spec2 = scipy.signal.periodogram(wave1.sound, rate, scaling="spectrum")
+    # fx2, Pxx_spec2 = scipy.signal.welch(wave1.sound, rate, nfft=64000, nperseg=64000)
+    ax[0].plot(wave1.time, wave1.sound)
+    ax[1].semilogx(fx2, Pxx_spec2, "b-", linewidth=0.3)
+    # ax[1].set_xlim([990, 1170])
+    play_wave(wave1.sound, rate)
+    mpl.show()
+
+
 def test_cmmr():
     rate = 250000.
-    for fp in ["Comodulated", "Codeviant", "Random"]:
-        wave1 = ComodulationMasking(rate=rate, duration=1.0, f0 = 4000., 
-                                pip_duration=0.25, pip_starts=[0.35],
-                                dbspl=70, fmod=40.0, dmod=50,
-                                ramp_duration=0.0025,
-                                flanking_type='MultiTone', flanking_spacing=0.5,
-                                flanking_phase=fp, flanking_bands=3)
-        # downsample wave for speaker
-        tmax = np.max(wave1.time)
-        newrate = 44100
-        tnew = np.arange(0, tmax, 1./newrate)
+    outputs = ["Target", "OFM", "Flanking", "Signal", "Target+OFM"]
+    nparts = len(outputs)
+    waves = {}
 
-        dwave = np.interp(tnew, wave1.time, wave1.sound)
-        sounddevice.play(dwave, 44100)
-        mpl.plot(wave1.time, wave1.sound)
-        mpl.show()
+    ftypes = ["Comodulated", "Codeviant", "Random"]
+    ntypes = len(ftypes)
+    f, ax = mpl.subplots(nparts, ntypes, figsize=(10, 8), )
+    mpl.subplots_adjust(wspace=0.5, hspace=0.2)
+    f.suptitle("CMMR")
+    for j, ftype in enumerate(ftypes):
+        for i, fp in enumerate(outputs):
+            waves[fp] = ComodulationMasking(rate=rate, duration=1.0, 
+                                    target_f0 = 2000., masker_f0 = 2000.,
+                                    masker_delay=0.1, masker_duration=0.5,
+                                    target_delay=0.3, target_duration=0.3,
+                                    target_spl=70, masker_spl=70, 
+                                    fmod=10.0, dmod=100,
+                                    ramp_duration=0.0025,
+                                    flanking_type="MultiTone", flanking_spacing=0.5,
+                                    flanking_phase=ftype, flanking_bands=3,
+                                    output = fp)
+            play_wave(waves[fp].sound, rate)
+
+            ax[i,j].plot(waves[fp].time, waves[fp].sound, linewidth=0.5)
+            if i == 0:
+                ax[i,j].set_title(f"{ftype}", fontsize=9)
+            if j == 0:
+                ax[i,j].set_ylabel(fp, fontsize=9)
+            if i == nparts-1:
+                ax[i,j].set_xlabel("Time (s)", fontsize=9)
+            ax[i,j].tick_params('x', labelsize=7)
+            ax[i,j].tick_params('y', labelsize=7)
+            ax[i,j].spines['right'].set_visible(False)
+            ax[i,j].spines['top'].set_visible(False)
+
+    mpl.text(0.95, 0.03, s=f"pysound: {datetime.datetime.now()!s}", horizontalalignment='right', fontsize=6, fontweight='normal',
+                     transform=f.transFigure)
+
+
+    mpl.show()
 
 def test_clicks():
     rate = 200000.
@@ -1520,19 +1659,22 @@ def test_clicks():
         click_duration=0.0001,
         click_starts=[0.01, 0.02, 0.03, 0.035],
     )
+
     mpl.plot(wave1.time, wave1.sound)
     mpl.show()
 
 if __name__ == "__main__":
     """
-    Test multiplicative bandpass/notch method for noise
+    Test sound generation
     """
     import matplotlib.pyplot as mpl
     import sounddevice
+    import datetime
+    import time
+    # test_RSS()
     # test_tone_pip()
     # test_noise_pip()
     # test_clicks()
     test_cmmr()
-
     # test_noise_bandpass()
     
